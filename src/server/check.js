@@ -7,10 +7,11 @@ import { loadBook } from './bookstore.js';
 import { commentsPath } from './commentfile.js';
 import { COMMENTS_FILE, commentProblems, decodeComments, describeProblem } from '../../shared/comments.js';
 import { find } from '../../shared/tree.js';
+import { TAGS_FILE, decodeTags } from '../../shared/tags.js';
 
 export const USAGE = `usage: webwriter check <book folder>
 
-Checks book.json and comments.json the way Webwriter reads them, and each comment
+Checks book.json, comments.json, and tags.json the way Webwriter reads them, and each comment
 against the text it points at. Errors mean the file is wrong: Webwriter cannot read it,
 or drops comments from it. Warnings mean Webwriter will move or hide a comment.`;
 
@@ -59,6 +60,14 @@ export function check(folder) {
     warn(`This folder has neither ${BOOK_FILE} nor manuscript/, so it is not a book yet.`);
   }
   problems.push(...commentFileProblems(root));
+  const tagsText = fsu.tryReadText(path.join(root, TAGS_FILE));
+  if (tagsText != null) {
+    try {
+      decodeTags(tagsText);
+    } catch (error) {
+      problems.push({ severity: 'error', message: `${TAGS_FILE} cannot be read: ${error.message}`, commentID: null });
+    }
+  }
 
   const lines = problems.map(describeProblem);
   const errors = problems.filter((p) => p.severity === 'error').length;

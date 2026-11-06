@@ -5,14 +5,15 @@ import { EditorController } from './editor.js';
 import { RenderedView } from './rendered.js';
 import { Outline } from './outline.js';
 import { CommentsPanel, MarkerLayer } from './comments-ui.js';
-import { renderBook, renderGroup, renderSection } from './render.js';
+import { renderBook, renderGroup, renderSection, setTagDefinitions } from './render.js';
 import {
   h, beep, sheet, alertSheet, confirmSheet, chooseSheet, titleSheet, commentSheet, browseSheet, paletteSheet,
-  showReminder, showMenu, closeMenu, showPopover, toast, shortcutLabel, sheetIsOpen,
+  showReminder, showMenu, closeMenu, showPopover, toast, shortcutLabel, sheetIsOpen, tagSheet, tagColorsSheet,
 } from './dialogs.js';
 import { api } from './api.js';
 import { COMMANDS } from '/shared/markup.js';
 import { TABLE_COMMANDS } from '/shared/table.js';
+import { TAG_COLOR_NAMES } from '/shared/tags.js';
 import { COLOR_HEX } from '/shared/comments.js';
 import { divisions, isGroup, isTrash, manuscript, effectiveUnit, STATUSES, UNITS } from '/shared/tree.js';
 
@@ -28,6 +29,11 @@ const ui = {
   choose: (options) => chooseSheet(options),
   askTitle: (kind) => titleSheet(kind),
   askComment: (draft, defaults) => commentSheet(draft, defaults),
+  askTag: (options) => tagSheet(options),
+  showTagColors() {
+    if (!model.book) return;
+    tagColorsSheet({ tags: model.allTags(), colorOf: (name) => model.tagColorOf(name), setColor: (name, color) => model.setTagColor(name, color) });
+  },
   toast,
   async choosePicture(root) {
     const choice = await browseSheet({
@@ -73,6 +79,15 @@ const ui = {
     const section = table?.closest('section[data-node]');
     const items = [];
     if (model.reviewSelection) items.push({ label: 'Add Comment…', shortcut: '⌃⌘M', action: () => model.requestComment() }, '-');
+    const pill = event.target.closest?.('.tag');
+    if (pill) {
+      const name = pill.dataset.tag;
+      items.push({
+        label: `Color of “${name}”`,
+        submenu: [...TAG_COLOR_NAMES.map((c) => ({ label: c[0].toUpperCase() + c.slice(1), action: () => model.setTagColor(name, c) })),
+          '-', { label: 'Automatic', action: () => model.setTagColor(name, null) }],
+      }, { label: 'Tag Colors…', action: () => ui.showTagColors() }, '-');
+    }
     if (cell && section) {
       const nodeID = section.dataset.node;
       const span = table.querySelector('span[data-o]');
@@ -174,6 +189,9 @@ const MENUS = [
       keys: { emphasis: ['mod+KeyI'], strong: ['mod+KeyB'], inlineCode: ['mod+KeyE'] }[c.id],
       enabled: has.node, action: () => model.apply(c.id), editorOnly: true,
     })),
+    '-',
+    { label: 'Tag…', shortcut: '⌥⌘T', keys: ['mod+alt+KeyT'], enabled: has.node, action: () => model.apply('tag') },
+    { label: 'Tag Colors…', enabled: has.book, action: () => ui.showTagColors() },
     '-',
     { label: 'Table', enabled: has.node, submenu: () => editorTableItems() },
     '-',
@@ -399,12 +417,14 @@ function updateForm() {
 
 const TABLE_ICON = '<svg class="bar-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 6h13M1.5 9.75h13M6 6v7.5M10.5 6v7.5" stroke="currentColor" stroke-width="1.2"/><rect x="2.1" y="3.1" width="11.8" height="2.9" fill="currentColor" opacity=".35"/></svg>';
 
+const TAG_ICON = '<svg class="bar-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.6 1.8H13a1.2 1.2 0 0 1 1.2 1.2v4.4a1 1 0 0 1-.3.7l-6.3 6.3a1 1 0 0 1-1.4 0L1.6 9.8a1 1 0 0 1 0-1.4l6.3-6.3a1 1 0 0 1 .7-.3z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="11" cy="5" r="1.2" fill="currentColor"/></svg>';
+
 const BAR_GROUPS = [
   [['strong', '<b>B</b>'], ['emphasis', '<i>I</i>'], ['inlineCode', '<span class="mono">&lt;/&gt;</span>']],
   [['subsection', 'H1'], ['lowerSubsection', 'H2']],
   [['bullet', '•≡'], ['numbered', '1.'], ['quotation', '❝']],
   [['link', '🔗'], ['picture', '🖼'], ['codeBlock', '<span class="mono">{ }</span>'], ['footnote', 'x¹']],
-  [['insertTable', TABLE_ICON], ['tableMenu', '▾']],
+  [['tag', TAG_ICON], ['insertTable', TABLE_ICON], ['tableMenu', '▾']],
 ];
 
 function buildMarkupBar() {
@@ -412,6 +432,14 @@ function buildMarkupBar() {
   const groups = BAR_GROUPS.map((group) => {
     const el = h('div', { class: 'bar-group' });
     for (const [id, label] of group) {
+      if (id === 'tag') {
+        const button = h('button', { class: 'bar-button', 'data-command': id, title: `Tag (${shortcutLabel('⌥⌘T')})\n[name]{.tag}, a colored tag, at the cursor` });
+        button.innerHTML = label;
+        button.addEventListener('mousedown', (e) => e.preventDefault());
+        button.addEventListener('click', () => model.apply('tag'));
+        el.append(button);
+        continue;
+      }
       if (id === 'insertTable' || id === 'tableMenu') {
         // A table in one click, and beside it a menu with the commands for the table under the cursor.
         const insert = TABLE_COMMANDS.find((c) => c.id === 'insertTable');
@@ -451,6 +479,7 @@ function buildMarkupBar() {
       for (const b of g.children) {
         const command = COMMANDS.find((c) => c.id === b.dataset.command);
         if (command) items.push({ label: command.name, enabled: has.node, action: () => model.apply(command.id) });
+        else if (b.dataset.command === 'tag') items.push({ label: 'Tag…', enabled: has.node, action: () => model.apply('tag') });
         else if (b.dataset.command === 'insertTable') items.push({ label: 'Insert Table', enabled: has.node, action: () => model.apply('insertTable') });
         else items.push({ label: 'Table', enabled: has.node, submenu: editorTableItems() });
       }
@@ -642,6 +671,11 @@ model.on((flags) => {
   if (flags.has('color')) {
     commentsPanel.renderBar();
     updateSelectionColor();
+  }
+  if (flags.has('tags')) {
+    setTagDefinitions(model.tags);
+    editor.retag();
+    renderDetail();
   }
   if (flags.has('conflict') || flags.has('selection')) updateConflictBar();
   if (flags.has('ui')) {

@@ -4,6 +4,27 @@
 import { fenceStep, fenceMark, codeSpans } from '/shared/fences.js';
 import { changedSpan } from '/shared/markup.js';
 import { highlight } from '/shared/comments.js';
+import { tagAttributes, tagColor } from '/shared/tags.js';
+import { getTagDefinitions } from './render.js';
+
+const TAG = /\[([^\]\n]+)\]\{([^}\n]*)\}/g;
+const tagClasses = new Set();
+
+/** A CSS class for a tag color, `tagc-B8EB9E`, made the first time it is needed. */
+function tagClass(color) {
+  const name = `tagc-${color.slice(1)}`;
+  if (!tagClasses.has(name)) {
+    tagClasses.add(name);
+    let sheet = document.getElementById('tag-colors');
+    if (!sheet) {
+      sheet = document.createElement('style');
+      sheet.id = 'tag-colors';
+      document.head.append(sheet);
+    }
+    sheet.append(`.cm-${name} { background: ${color}; border-radius: 3px; }\n`);
+  }
+  return name;
+}
 
 const CodeMirror = window.CodeMirror;
 
@@ -62,6 +83,14 @@ function lineStyles(line, fence) {
       add(m.index, m.index + m[0].length, 'mark');
       const text = m.index + m[0].indexOf('[') + 1;
       add(text, text + m[1].length, 'link');
+    }
+    for (const m of line.matchAll(TAG)) {
+      const attributes = tagAttributes(m[2]);
+      if (!attributes.isTag || !outside(m.index, m.index + m[0].length) || line[m.index - 1] === '!') continue;
+      const color = tagColor(m[1], getTagDefinitions(), attributes.color);
+      add(m.index + 1, m.index + 1 + m[1].length, `tag ${tagClass(color)}`);
+      add(m.index, m.index + 1, 'mark');
+      add(m.index + 1 + m[1].length, m.index + m[0].length, 'mark');
     }
     for (const m of line.matchAll(NOTE)) {
       if (outside(m.index, m.index + m[0].length)) add(m.index, m.index + m[0].length, 'note');
@@ -179,12 +208,24 @@ export class EditorController {
       }
       this.nodeID = nodeID;
       if (this.cm.getDoc() !== doc) this.cm.swapDoc(doc);
+      // A document last shown before the tag colors changed is drawn again.
+      if ((doc.tagVersion || 0) !== (this.tagVersion || 0)) {
+        this.cm.setOption('mode', 'bookmd');
+        doc.tagVersion = this.tagVersion || 0;
+      }
     } finally {
       this.suppress = false;
     }
     this.refreshComments();
     const pending = this.model.takePendingSelection();
     if (pending) this.select(pending.start, pending.length, true);
+  }
+
+  /** Draw the tags again in their colors, after tags.json changed. */
+  retag() {
+    this.tagVersion = (this.tagVersion || 0) + 1;
+    this.cm.setOption('mode', 'bookmd');
+    this.cm.getDoc().tagVersion = this.tagVersion;
   }
 
   /** An undo history would undo into text that is no longer there. */

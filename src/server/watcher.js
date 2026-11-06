@@ -29,15 +29,16 @@ export class FolderWatcher {
   }
 }
 
-/** Whether a changed path is one the application follows: the manuscript, the title, or the comments. */
+/** Whether a changed path is one the application follows: the manuscript, the title, the comments, or the tag colors. */
 export function relevantChange(relative) {
-  if (relative === '') return { manuscript: true, comments: true };
+  if (relative === '') return { manuscript: true, comments: true, tags: true };
   const parts = relative.split('/');
   const name = parts[parts.length - 1];
   // Temporary files of atomic writes start with a dot. Their rename is reported under the real name.
-  if (name.startsWith('.') && parts.length === 1) return { manuscript: false, comments: false };
+  if (name.startsWith('.') && parts.length === 1) return { manuscript: false, comments: false, tags: false };
   return {
     manuscript: parts[0] === 'manuscript' || relative === 'book.json',
     comments: relative === 'comments.json',
+    tags: relative === 'tags.json',
   };
 }

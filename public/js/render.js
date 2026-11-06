@@ -5,6 +5,16 @@ import { fenceMark, fenceCloses } from '/shared/fences.js';
 import { clampHeadingLevel, isFront, isGroup, startsNewPage, divisionLabel } from '/shared/tree.js';
 import { Mapped, shiftHeadings, prepareNotes, noteNumber, NOTE_OPEN, NOTE_CLOSE } from './mapped.js';
 import { highlightCode } from './code.js';
+import { tagAttributes, tagColor } from '/shared/tags.js';
+
+/** The book's tag colors from tags.json, by tag name. */
+let tagDefinitions = {};
+
+export function setTagDefinitions(definitions) {
+  tagDefinitions = definitions || {};
+}
+
+export const getTagDefinitions = () => tagDefinitions;
 
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -308,6 +318,24 @@ class Inline {
           }
           i = tail.end;
           continue;
+        }
+        // A Pandoc span, `[text]{.class key=value}`: with the class `tag`, a colored tag.
+        if (c === '[' && close > open + 1 && text[close + 1] === '{') {
+          const end = text.indexOf('}', close + 2);
+          if (end > 0 && !text.slice(close + 2, end).includes('\n')) {
+            flush(i);
+            const attributes = tagAttributes(text.slice(close + 2, end));
+            const inner = new Inline(this.ctx).render(m.slice(open + 1, close));
+            if (attributes.isTag) {
+              const name = text.slice(open + 1, close);
+              const color = tagColor(name, tagDefinitions, attributes.color);
+              html(end + 1, `<span class="tag" data-tag="${esc(name)}" style="--tag:${color}">${inner}</span>`);
+            } else {
+              html(end + 1, `<span class="pandoc-span">${inner}</span>`);
+            }
+            i = end + 1;
+            continue;
+          }
         }
       }
       if (c === '*' || c === '_' || c === '~') {

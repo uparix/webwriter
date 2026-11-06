@@ -12,6 +12,7 @@ import {
 } from '/shared/comments.js';
 import { exportChapter, fileTitle, timestamped } from '/shared/export.js';
 import { TABLE_COMMANDS, editTable, findTable, leaveTable } from '/shared/table.js';
+import { tagsIn, tagColor, normalizeTag, tagMarkup, cleanTagName, colorValue } from '/shared/tags.js';
 
 const clone = (value) => structuredClone(value);
 
@@ -66,6 +67,9 @@ export class BookModel {
     this.focusedCommentID = null;
     this.reviewSelection = null;
     this.pendingSelection = null;
+
+    /** Tag colors from tags.json, by tag name. */
+    this.tags = {};
 
     this.findVisible = false;
     this.find = { query: '', replacement: '', options: { matchCase: false, regex: false, wholeWord: false, wholeBook: false } };
@@ -145,6 +149,7 @@ export class BookModel {
     this.dirty = false;
     this.editor?.forgetAll();
     await this.loadComments();
+    await this.loadTags();
     this.selection = { kind: 'book' };
     this.openNodeID = null;
     this.buffer = '';
@@ -168,6 +173,7 @@ export class BookModel {
       this.commentsDirty = false;
       this.editor?.forgetAll();
       await this.loadComments();
+      await this.loadTags();
       if (keep.kind === 'node' && this.findNode(keep.id)) this.select(keep, false);
       else this.select({ kind: 'book' }, false);
       this.emit('tree', 'conflict', 'comments');
@@ -449,6 +455,8 @@ export class BookModel {
 
   async apply(command) {
     if (!this.editor || !this.book || this.openNodeID == null) return;
+    if (command === 'tag') return this.requestTag();
+    if (command === 'tagColors') return this.ui.showTagColors();
     if (TABLE_COMMANDS.some((c) => c.id === command)) {
       if (!this.tableCommand(command) && command !== 'insertTable' && !this.cursorInTable()) this.ui.beep();
       return;
@@ -468,6 +476,82 @@ export class BookModel {
     if (!this.showsMarkup) this.setShowsMarkup(true);
     const { anchor, head } = this.editor.selection;
     this.editor.replace(applyMarkup(command, this.buffer, anchor, head, { language, picturePath }));
+  }
+
+  // MARK: Tags
+
+  /** Read the tag colors. A tags.json that cannot be read leaves every tag in its automatic color. */
+  async loadTags() {
+    const response = await api.get('/api/tags');
+    if (response.error != null) {
+      if (!this.tagsUnreadable) this.ui.alert(`The tag colors in tags.json could not be read, so tags are shown in their automatic colors and the file is left as it is. ${response.error}`);
+      this.tagsUnreadable = true;
+      this.tags = {};
+    } else {
+      this.tagsUnreadable = false;
+      this.tags = response.tags;
+    }
+    this.emit('tags');
+  }
+
+  /** The color a tag is drawn in now, as #RRGGBB. */
+  tagColorOf(name) {
+    return tagColor(name, this.tags);
+  }
+
+  /** Every tag in the book, the trash included, with how often it is used: [{ key, name, count, color }]. */
+  allTags() {
+    const found = new Map();
+    if (!this.book) return [];
+    walk(this.book.nodes, (node) => {
+      for (const tag of tagsIn(this.liveBody(node))) {
+        const key = normalizeTag(tag.name);
+        const entry = found.get(key) || { key, name: tag.name.trim(), count: 0 };
+        entry.count += 1;
+        found.set(key, entry);
+      }
+    });
+    for (const key of Object.keys(this.tags)) if (!found.has(key)) found.set(key, { key, name: key, count: 0 });
+    return [...found.values()]
+      .map((t) => ({ ...t, color: this.tags[t.key] ?? null }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /** Give a tag a color in tags.json, or with null its automatic one again. */
+  setTagColor(name, color) {
+    return this.serial(async () => {
+      try {
+        const { tags } = await api.post('/api/tags/color', { name, color });
+        this.tags = tags;
+        this.emit('tags');
+      } catch (error) {
+        this.ui.alert(error.message);
+      }
+    });
+  }
+
+  /** Ask for a tag and put it at the cursor. Selected text becomes the tag's name. */
+  async requestTag() {
+    if (!this.editor || this.openNodeID == null) return;
+    const { start, end } = this.editor.selection;
+    const selected = cleanTagName(this.buffer.slice(start, end));
+    const answer = await this.ui.askTag({ name: selected, tags: this.allTags(), colorOf: (n) => this.tagColorOf(n) });
+    if (!answer) return;
+    this.insertTag(answer.name, answer.color);
+  }
+
+  /** `[name]{.tag}` in place of the selection. The chosen color is recorded in tags.json when it is not there yet. */
+  insertTag(name, color) {
+    const clean = cleanTagName(name);
+    if (!clean || !this.editor) return;
+    if (!this.showsMarkup) this.setShowsMarkup(true);
+    const { start, end } = this.editor.selection;
+    const markup = tagMarkup(clean);
+    this.editor.replace({
+      text: this.buffer.slice(0, start) + markup + this.buffer.slice(end),
+      anchor: start + markup.length, head: start + markup.length,
+    });
+    if (color && colorValue(this.tags[normalizeTag(clean)]) !== colorValue(color)) this.setTagColor(clean, color);
   }
 
   // MARK: Tables
@@ -788,6 +872,7 @@ export class BookModel {
     this.serial(async () => {
       if (event.manuscript) await this.reloadIfChangedOutside();
       if (event.comments) await this.mergeCommentsFromDisk();
+      if (event.tags) await this.loadTags();
     });
   }
 

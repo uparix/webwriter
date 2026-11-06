@@ -1,11 +1,13 @@
 // The PDF export: the manuscript Markdown that Export Manuscript writes, laid out by the
 // renderer on Letter pages. Notes are printed at the end of the group they belong to.
 import { api } from './api.js';
-import { renderPlain } from './render.js';
+import { renderPlain, setTagDefinitions } from './render.js';
 import { noteGroups, exportChapter } from '/shared/export.js';
 
 const params = new URLSearchParams(location.search);
 const book = await api.get('/api/book');
+// Tags print in their colors from tags.json.
+setTagDefinitions((await api.get('/api/tags')).tags || {});
 let groups;
 if (params.get('chapter')) {
   const chapter = exportChapter(book.nodes, params.get('chapter'));

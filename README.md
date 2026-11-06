@@ -57,9 +57,39 @@ lines change. Lining up a table changes the spaces in it, so comments inside it 
 again, even when the quote's spacing changed. Table rows are monospaced in the editor so the
 columns line up on screen.
 
+## Tags
+
+A tag is a colored label in the text, written as a Pandoc span with the class `tag`:
+
+```markdown
+This scene is [draft]{.tag} and needs a [fact check]{.tag color=red}.
+```
+
+The preview, the reading views, and the PDF draw each tag as a pill in its color. Word files shade
+it in its color through a Pandoc filter (`src/server/tags.lua`). The exported Markdown keeps the span
+as written, which Pandoc reads as plain text. In the editor, the tag's name is tinted in its color.
+
+The book's tag colors are in `tags.json`, beside `book.json`:
+
+```json
+{
+  "tags" : {
+    "draft" : "green"
+  },
+  "version" : 1
+}
+```
+
+Colors are `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `teal`, `green`, `gray`, or `#RRGGBB`.
+Tag names match without regard to case. A tag's own `color=` wins over `tags.json`, and a tag that
+has neither gets a color picked from its name. Markup → Tag… (⌥⌘T), the tag button in the markup
+bar, and the palette insert a tag, with the book's tags to choose from. Markup → Tag Colors…, or
+right-clicking a tag in the preview, changes colors. Changes to `tags.json` by other programs show
+within about a second, and a `tags.json` that cannot be read is never written over.
+
 ## Checking a book
 
-Agents and scripts that edit `book.json` or `comments.json` can check their work with the code the
+Agents and scripts that edit `book.json`, `comments.json`, or `tags.json` can check their work with the code the
 app uses. It prints errors and warnings and exits with 1 when there are errors.
 
 ```

@@ -4,8 +4,10 @@ import { api } from './api.js';
 import { COLORS, COLOR_HEX } from '/shared/comments.js';
 import { COMMANDS, matchingCommands } from '/shared/markup.js';
 import { TABLE_COMMANDS } from '/shared/table.js';
+import { TAG_COMMANDS, TAG_COLORS, TAG_COLOR_NAMES, autoColor, cleanTagName } from '/shared/tags.js';
 
-const PALETTE = [...COMMANDS, ...TABLE_COMMANDS];
+const PALETTE = [...COMMANDS, ...TAG_COMMANDS, ...TABLE_COMMANDS];
+const capitalize = (s) => s[0].toUpperCase() + s.slice(1);
 
 export const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
@@ -14,7 +16,13 @@ export const h = (tag, attrs = {}, ...children) => {
     if (key === 'class') el.className = value;
     else if (key === 'text') el.textContent = value;
     else if (key.startsWith('on')) el.addEventListener(key.slice(2).toLowerCase(), value);
-    else if (key === 'style' && typeof value === 'object') Object.assign(el.style, value);
+    else if (key === 'style' && typeof value === 'object') {
+      // Custom properties such as `--tag` need setProperty.
+      for (const [name, v] of Object.entries(value)) {
+        if (name.startsWith('--')) el.style.setProperty(name, v);
+        else el.style[name] = v;
+      }
+    }
     else el.setAttribute(key, value === true ? '' : value);
   }
   for (const child of children.flat()) {
@@ -190,6 +198,117 @@ export function commentSheet(draft, { author, color }) {
   }, { className: 'comment-sheet' });
 }
 
+// MARK: Tags
+
+/** Swatches for the tag colors. `chosen()` and `choose(name)` keep the choice. */
+function tagSwatches(chosen, choose) {
+  const row = h('div', { class: 'swatches tag-swatches' });
+  const draw = () => {
+    for (const s of row.children) s.classList.toggle('chosen', s.dataset.color === chosen());
+  };
+  for (const name of TAG_COLOR_NAMES) {
+    row.append(h('button', {
+      class: 'swatch', 'data-color': name, title: capitalize(name), 'aria-label': capitalize(name),
+      style: { background: TAG_COLORS[name] },
+      onclick: () => {
+        choose(name);
+        draw();
+      },
+    }));
+  }
+  draw();
+  return { row, draw };
+}
+
+/** A tag as it looks in the text. */
+export function tagPill(name, color) {
+  return h('span', { class: 'tag', style: { '--tag': color }, text: name });
+}
+
+/**
+ * The Tag sheet: a name, with the book's tags to choose from, and a color. A tag the book already has
+ * starts with its color. Resolves to { name, color } with a color name, or null.
+ */
+export function tagSheet({ name = '', tags, colorOf }) {
+  return sheet((close) => {
+    const input = h('input', { type: 'text', value: name, placeholder: 'Tag', autofocus: true, 'aria-label': 'Tag', list: 'tag-names' });
+    const names = h('datalist', { id: 'tag-names' }, tags.map((t) => h('option', { value: t.name })));
+    const preview = h('div', { class: 'tag-preview' });
+    let color = null;
+    let touched = false;
+    const named = () => {
+      const hex = colorOf(input.value || 'tag');
+      return TAG_COLOR_NAMES.find((n) => TAG_COLORS[n] === hex) || null;
+    };
+    const swatches = tagSwatches(() => color, (c) => {
+      color = c;
+      touched = true;
+      update();
+    });
+    const add = h('button', { class: 'primary' }, 'Add Tag');
+    const update = () => {
+      if (!touched) color = named();
+      swatches.draw();
+      const clean = cleanTagName(input.value);
+      add.disabled = clean === '';
+      preview.textContent = '';
+      if (clean) preview.append(tagPill(clean, color ? TAG_COLORS[color] : colorOf(clean)));
+    };
+    input.addEventListener('input', update);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !add.disabled) add.click();
+    });
+    add.addEventListener('click', () => close({ name: cleanTagName(input.value), color }));
+    const chips = h('div', { class: 'tag-chips' }, tags.filter((t) => t.count > 0).slice(0, 24).map((t) => {
+      const chip = tagPill(t.name, colorOf(t.name));
+      chip.classList.add('chip');
+      chip.addEventListener('click', () => {
+        input.value = t.name;
+        touched = false;
+        update();
+        input.focus();
+      });
+      return chip;
+    }));
+    update();
+    return [
+      h('h2', { text: 'Tag' }),
+      input, names,
+      chips.children.length ? h('div', {}, h('label', { class: 'field-label', text: 'Tags in this book' }), chips) : null,
+      h('div', { class: 'color-row' }, h('label', { class: 'field-label', text: 'Color' }), swatches.row),
+      preview,
+      h('p', { class: 'sheet-message small', text: 'The color is kept for this tag everywhere in the book, in tags.json.' }),
+      h('div', { class: 'sheet-buttons' }, h('button', { onclick: () => close(null) }, 'Cancel'), add),
+    ];
+  }, { className: 'tag-sheet' });
+}
+
+/** Tag Colors: every tag in the book, and its color. Changes are saved at once through `setColor`. */
+export function tagColorsSheet({ tags, colorOf, setColor }) {
+  return sheet((close) => {
+    const list = h('div', { class: 'tag-color-list' });
+    if (!tags.length) list.append(h('p', { class: 'sheet-message', text: 'This book has no tags yet. Write [name]{.tag}, or choose Markup → Tag.' }));
+    for (const tag of tags) {
+      let current = tag.color;
+      const pill = tagPill(tag.name, colorOf(tag.name));
+      const swatches = tagSwatches(() => current, (c) => {
+        current = current === c ? null : c;
+        setColor(tag.key, current);
+        pill.style.setProperty('--tag', TAG_COLORS[current ?? autoColor(tag.name)]);
+      });
+      list.append(h('div', { class: 'tag-color-row' },
+        h('div', { class: 'tag-color-name' }, pill, h('span', { class: 'tag-count', text: tag.count === 1 ? '1 use' : `${tag.count} uses` })),
+        swatches.row));
+    }
+    return [
+      h('h2', { text: 'Tag Colors' }),
+      h('p', { class: 'sheet-message small', text: 'Clicking the chosen color again gives the tag its automatic color.' }),
+      list,
+      h('div', { class: 'sheet-buttons' }, h('button', { class: 'primary', autofocus: true, onclick: () => close(true) }, 'Done')),
+    ];
+  }, { className: 'tag-colors-sheet' });
+}
+
 // MARK: The file browser
 
 /**
@@ -354,7 +473,10 @@ export function showReminder() {
         ['Enter', 'Same column in the next row; on an empty last row, leaves the table'],
         ['Shift+Enter', 'A new line'],
         ...TABLE_COMMANDS.map((c) => [c.name, c.inserts]),
-      ].map(([name, what]) => h('tr', {}, h('td', { text: name }), h('td', { text: what }))))));
+      ].map(([name, what]) => h('tr', {}, h('td', { text: name }), h('td', { text: what }))))),
+    h('table', {},
+      h('thead', {}, h('tr', {}, h('th', { text: 'Tags' }), h('th', { text: 'What it inserts' }))),
+      h('tbody', {}, TAG_COMMANDS.map((c) => h('tr', {}, h('td', { text: c.name }), h('td', {}, h('code', { text: c.inserts })))))));
   let drag = null;
   panel.firstChild.addEventListener('mousedown', (e) => {
     const rect = panel.getBoundingClientRect();

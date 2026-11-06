@@ -17,6 +17,13 @@ import { Preferences } from './prefs.js';
 import { FolderWatcher, relevantChange } from './watcher.js';
 import { exportBook } from '../../shared/export.js';
 import { walk } from '../../shared/tree.js';
+import { TAGS_FILE, decodeTags, encodeTags } from '../../shared/tags.js';
+
+/** The book's tag colors. A book without tags.json has none; one that cannot be read throws. */
+function loadTags(root) {
+  const text = fsu.tryReadText(path.join(root, TAGS_FILE));
+  return text == null ? {} : decodeTags(text);
+}
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, '..', '..');
@@ -68,7 +75,8 @@ export function createServer({ book = null, prefs = new Preferences(), remember 
         const kinds = paths.map(relevantChange);
         const manuscript = kinds.some((k) => k.manuscript);
         const comments = kinds.some((k) => k.comments);
-        if (manuscript || comments) broadcast({ type: 'changed', manuscript, comments });
+        const tags = kinds.some((k) => k.tags);
+        if (manuscript || comments || tags) broadcast({ type: 'changed', manuscript, comments, tags });
       });
     } catch (error) {
       log(`Cannot watch ${root}: ${error.message}`);
@@ -178,6 +186,35 @@ export function createServer({ book = null, prefs = new Preferences(), remember 
       saveComments(requireBook(), Array.isArray(body.comments) ? body.comments : []);
       return { ok: true };
     },
+    'GET /api/tags': () => {
+      try {
+        return { tags: loadTags(requireBook()) };
+      } catch (error) {
+        return { error: error.message };
+      }
+    },
+    /** Set or clear one tag's color. tags.json is read again first, and never written over when unreadable. */
+    'POST /api/tags/color': ({ body }) => {
+      const root = requireBook();
+      let tags;
+      try {
+        tags = loadTags(root);
+      } catch (error) {
+        throw new HttpError(409, `The tag colors in ${TAGS_FILE} cannot be read, so Webwriter leaves the file as it is. ${error.message}`);
+      }
+      const name = String(body.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      if (!name) throw new HttpError(400, 'A tag name is needed.');
+      if (body.color) tags[name] = String(body.color);
+      else delete tags[name];
+      const file = path.join(root, TAGS_FILE);
+      if (Object.keys(tags).length === 0) fsu.remove(file);
+      else {
+        const text = encodeTags(Object.fromEntries(Object.entries(tags).sort(([a], [b]) => a.localeCompare(b))));
+        decodeTags(text);
+        if (fsu.tryReadText(file) !== text) fsu.writeText(file, text);
+      }
+      return { tags };
+    },
     'GET /api/browse': ({ query }) => browse(query.get('path') || state.root || os.homedir(), query.get('files')),
     'POST /api/mkdir': ({ body }) => {
       const dir = path.resolve(String(body.path || ''));
@@ -198,7 +235,13 @@ export function createServer({ book = null, prefs = new Preferences(), remember 
       const book = loadBook(requireBook());
       const dir = path.resolve(String(body.dir || ''));
       if (!fsu.isDirectory(dir)) throw new HttpError(400, `${dir} is not a folder.`);
-      return writeChapters(book, dir, new Date());
+      let tags = {};
+      try {
+        tags = loadTags(book.root);
+      } catch {
+        // Tags are drawn in their automatic colors.
+      }
+      return writeChapters(book, dir, new Date(), tags);
     },
   };
 

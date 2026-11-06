@@ -210,6 +210,7 @@ body.resizing iframe, body.resizing .CodeMirror { pointer-events: none; }
 .cm-code { font-family: var(--mono); font-size: 0.9em; background: var(--code-bg); }
 .cm-codeline { background: var(--code-bg); }
 .cm-table { font-family: var(--mono); font-size: 0.9em; }
+.cm-tag { padding: 0 1px; }
 .cm-mark { color: var(--ink-mark); }
 .cm-s-default .cm-link { color: var(--ink-link); text-decoration: none; }
 .cm-note { color: var(--ink-accent); }
@@ -399,3 +400,22 @@ body.no-book #sidebar, body.no-book #sidebar-split { display: none; }
 #toast.shown { opacity: 1; transform: translate(-50%, 0); }
 /* CodeMirror's scroller reaches 50px past its visible right edge, to hide its own scrollbar. */
 .CodeMirror-scroll > .marker-layer { right: 54px; }
+
+/* Tags: a pill in the tag's color */
+.tag {
+  background: var(--tag, #DCDCE0); color: #1b1b1b; border-radius: 999px; padding: 0.05em 0.6em;
+  font: 600 0.78em/1.5 var(--sans); white-space: nowrap; vertical-align: 0.08em; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.tag-sheet { width: 420px; }
+.tag-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.tag.chip { cursor: pointer; font-size: 11px; }
+.tag-preview { min-height: 24px; }
+.tag-preview .tag { font-size: 13px; }
+.tag-swatches .swatch { width: 18px; height: 18px; }
+.sheet-message.small { font-size: 11.5px; }
+.tag-colors-sheet { width: 500px; }
+.tag-color-list { max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.tag-color-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 2px; }
+.tag-color-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tag-color-name .tag { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.tag-count { color: var(--secondary); font-size: 11px; white-space: nowrap; }

@@ -3,7 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { wordFiles, timestamped } from '../../shared/export.js';
+import { resolveTagColors } from '../../shared/tags.js';
+
+/** Draws tags as shaded text in Word. */
+const TAG_FILTER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tags.lua');
 
 export const NOT_INSTALLED = 'Pandoc is not installed. Install it, for example with `brew install pandoc`, and export again.';
 
@@ -32,7 +37,7 @@ export function docx(markdown, output, resourceDirectory) {
   const pandoc = pandocExecutable();
   if (!pandoc) return Promise.reject(new Error(NOT_INSTALLED));
   return new Promise((resolve, reject) => {
-    const child = spawn(pandoc, ['--from=markdown', '--to=docx', '-o', output], {
+    const child = spawn(pandoc, ['--from=markdown', '--to=docx', `--lua-filter=${TAG_FILTER}`, '-o', output], {
       cwd: resourceDirectory, stdio: ['pipe', 'ignore', 'pipe'],
     });
     let errors = '';
@@ -46,13 +51,16 @@ export function docx(markdown, output, resourceDirectory) {
   });
 }
 
-/** One Word file for each front-matter piece and each chapter, written into `directory`. */
-export async function writeChapters(book, directory, date = new Date()) {
+/**
+ * One Word file for each front-matter piece and each chapter, written into `directory`.
+ * `tags` are the colors from tags.json, so each tag is shaded in its color.
+ */
+export async function writeChapters(book, directory, date = new Date(), tags = {}) {
   const exported = wordFiles(book.nodes);
   const names = [];
   for (const file of exported.files) {
     const name = date ? timestamped(file.name, date) : file.name;
-    await docx(file.markdown, path.join(directory, name), book.root);
+    await docx(resolveTagColors(file.markdown, tags), path.join(directory, name), book.root);
     names.push(name);
   }
   return { files: names, warnings: exported.warnings };

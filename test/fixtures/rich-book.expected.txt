@@ -1,0 +1,99 @@
+# Front Matter {-}
+
+<div class="page-break"></div>
+
+## Preface {-}
+
+Why this book.[^preface-1]
+
+### Thanks {-}
+
+[^preface-1]: A front note.
+
+## Dedication {-}
+
+For the readers.
+
+<div class="page-break"></div>
+
+<p class="chapter-number">Part 1</p>
+
+# Part One
+
+The part opener.[^part-one-p]
+
+[^part-one-p]: A part note.
+
+<div class="page-break"></div>
+
+<p class="chapter-number">Chapter 1</p>
+
+## Naming
+
+Chapter opener with `[^not-a-note]` in code.
+
+<div class="page-break"></div>
+
+### The Rule
+
+A rule.[^rule-1] Inline too.^[An inline note.]
+
+##### Deep heading
+
+###### Too deep
+
+```java
+# not a heading
+[^1] not a note
+```
+
+[^rule-1]: Rule note.
+
+<div class="page-break"></div>
+
+<p class="chapter-number">Chapter 2</p>
+
+### Nested Chapter
+
+A chapter inside a chapter.[^nested-1]
+
+[^nested-1]: Nested note.
+
+### Legacy Break
+
+Old file with break false.
+
+<div class="page-break"></div>
+
+<p class="chapter-number">Chapter 3</p>
+
+## Second Chapter
+
+### Tail: The End?
+
+Ends here.
+
+```
+unclosed fence
+
+<div class="page-break"></div>
+
+# Loose Section
+
+Outside any chapter.[^loose-x]
+
+[^loose-x]: Loose note.
+
+<div class="page-break"></div>
+
+# Old Group
+
+Legacy group.
+----WARN
+A heading of level 9 was written at level 6.
+Unclosed code fence.
+----DOCX
+FM-Front Matter.docx
+01-Naming.docx
+02-Nested Chapter.docx
+03-Second Chapter.docx

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Webwriter PDF</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    /* Print style: US Letter, 72 pt margins, a centered page number 9 pt high in the bottom margin. */
+    @page {
+      size: 612pt 792pt;
+      margin: 72pt;
+      @bottom-center { content: counter(page); font: 9pt var(--serif); color: #000; vertical-align: bottom; padding-bottom: 31pt; }
+    }
+    html, body { background: #fff; overflow: visible; height: auto; color: #000; }
+    .paper { max-width: none; padding: 0; margin: 0; font-size: 11pt; color: #000; }
+    .paper .page-break-mark { break-before: page; height: 0; margin: 0; visibility: hidden; overflow: hidden; }
+    .paper pre.code { background: #eeeeee; break-inside: avoid; }
+    .paper .notes { break-inside: avoid-page; }
+    .paper h1, .paper h2, .paper h3 { break-after: avoid; }
+    .paper img.picture { break-inside: avoid; }
+    .tok-keyword { color: #6c2a54; } .tok-string { color: #7a3a2a; } .tok-comment { color: #666; } .tok-number { color: #2a3a7a; } .tok-type { color: #2a5a64; }
+    @media screen {
+      body { background: #888; padding: 24px 0; }
+      .paper { background: #fff; width: 612pt; padding: 72pt; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,.3); }
+      .paper .page-break-mark { visibility: visible; height: auto; margin: 2em 0; }
+      #print-note { text-align: center; color: #fff; font: 13px var(--sans); margin-bottom: 14px; }
+    }
+    @media print { #print-note { display: none; } }
+  </style>
+</head>
+<body>
+  <p id="print-note">Choose “Save as PDF” in the print dialog.</p>
+  <article class="paper" id="printed"></article>
+  <script type="module" src="/js/print.js"></script>
+</body>
+</html>

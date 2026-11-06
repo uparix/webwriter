@@ -1,0 +1,21 @@
+{
+  "name": "webwriter",
+  "version": "1.0.0",
+  "description": "A writing application for one long book, in the browser. A Node.js port of Bookwriter.",
+  "type": "module",
+  "bin": {
+    "webwriter": "bin/webwriter.js"
+  },
+  "scripts": {
+    "start": "node bin/webwriter.js",
+    "check": "node bin/webwriter.js check",
+    "test": "node --import ./test/browser-paths.mjs --test test/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "codemirror": "^5.65.18"
+  }
+}

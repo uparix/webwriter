@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Webwriter</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/vendor/codemirror/lib/codemirror.css">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/vendor/codemirror/lib/codemirror.js"></script>
+</head>
+<body class="no-book">
+  <div id="app">
+    <nav id="menubar" aria-label="Menu bar"></nav>
+
+    <header id="toolbar">
+      <div class="toolbar-side"></div>
+      <input id="book-title" type="text" aria-label="Book title" placeholder="Book title" spellcheck="false">
+      <div class="toolbar-side right">
+        <button id="add-button" class="tool" title="New Text, New Folder, Add Comment">＋ ▾</button>
+        <button id="markup-toggle" class="tool toggle" title="Show or hide the Markdown editor (⇧⌘M)">Markup</button>
+        <button id="warnings-button" class="tool warnings" hidden>⚠ <span id="warnings-count"></span></button>
+        <button id="comments-toggle" class="tool toggle" title="Show or hide the comments panel (⌥⌘0)">Comments</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <aside id="sidebar">
+        <div id="outline" aria-label="Outline"></div>
+        <div id="form-split" class="hsplit"></div>
+        <form id="form" hidden onsubmit="return false">
+          <label>Title <input id="form-title" type="text"></label>
+          <label>Synopsis <textarea id="form-synopsis" rows="3"></textarea></label>
+          <label>Status <select id="form-status"></select></label>
+          <label>Role <select id="form-role"><option value="body">Body</option><option value="front">Front matter</option></select></label>
+          <label>Unit <select id="form-unit"></select></label>
+        </form>
+      </aside>
+      <div id="sidebar-split" class="vsplit"></div>
+
+      <section id="detail">
+        <div id="conflict-bar" hidden></div>
+        <div id="find-bar" hidden>
+          <div class="find-row">
+            <input id="find-query" type="search" placeholder="Find" aria-label="Find">
+            <button id="find-prev" title="Find Previous (⇧⌘G)">◀</button>
+            <button id="find-next" title="Find Next (⌘G)">▶</button>
+            <label><input id="find-case" type="checkbox"> Match case</label>
+            <label><input id="find-regex" type="checkbox"> Regexp</label>
+            <label><input id="find-word" type="checkbox"> By word</label>
+            <label><input id="find-book" type="checkbox"> Whole book</label>
+            <button id="find-done" class="done">Done</button>
+          </div>
+          <div class="find-row">
+            <input id="find-replace" type="text" placeholder="Replace" aria-label="Replace">
+            <button id="replace-one">Replace</button>
+            <button id="replace-all">All</button>
+          </div>
+        </div>
+        <div id="trash-bar" hidden>
+          <span>Pieces in the trash are not part of the manuscript. Drag a piece out to bring it back.</span>
+          <button id="empty-trash-bar">Empty Trash…</button>
+        </div>
+        <div id="panes" hidden>
+          <div id="editor-pane">
+            <div id="markup-bar"></div>
+            <div id="editor" class="paper-editor"></div>
+          </div>
+          <div id="pane-split" class="vsplit"></div>
+          <div id="render-pane">
+            <div id="render-scroll" class="paper-scroll"><article id="rendered" class="paper"></article></div>
+          </div>
+        </div>
+        <div id="empty-state" hidden>
+          <div class="empty-box">
+            <svg viewBox="0 0 16 16" class="empty-icon"><path d="M2 2.5h4.5A1.5 1.5 0 0 1 8 4v10a1.5 1.5 0 0 0-1.5-1.5H2zM14 2.5H9.5A1.5 1.5 0 0 0 8 4v10a1.5 1.5 0 0 1 1.5-1.5H14z" fill="none" stroke="currentColor" stroke-width=".8" stroke-linejoin="round"/></svg>
+            <h1>No Book Open</h1>
+            <p>A book is a folder of Markdown files. Choose a folder to open it, or an empty folder to start one.</p>
+            <button id="open-book" class="primary">Open Book…</button>
+            <ul id="recent-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <div id="comments-split" class="vsplit" hidden></div>
+      <aside id="comments-panel" hidden aria-label="Comments"></aside>
+    </main>
+  </div>
+  <div id="overlay"></div>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

@@ -27,6 +27,8 @@ function lineStyles(line, fence) {
     if (fenceMark(line)) add(0, line.length, 'mark');
     lineClass = 'line-background-cm-codeline';
   } else if (line.length) {
+    // Table rows are monospaced, so columns lined up by Tab line up on screen.
+    if (/^[ \t]*\|/.test(line)) add(0, line.length, 'table');
     const heading = HEADING.exec(line);
     if (heading) {
       add(0, line.length, `heading heading-${heading[1].length}`);
@@ -110,9 +112,19 @@ export class EditorController {
       undoDepth: 2000,
       viewportMargin: Infinity,
       configureMouse: () => ({ addNew: false }),
-      extraKeys: { Tab: (cm) => cm.replaceSelection('\t'), Enter: 'newlineAndIndent' },
     });
-    this.cm.setOption('extraKeys', { Tab: (cm) => cm.replaceSelection('\t'), Enter: (cm) => cm.replaceSelection('\n') });
+    // In a table, Tab and Shift+Tab move between cells and Enter to the next row, lining the table up.
+    // Shift+Enter always starts a new line.
+    const inTable = (command, otherwise) => (cm) => {
+      if (!this.model.tableCommand(command)) return otherwise ? otherwise(cm) : CodeMirror.Pass;
+      return undefined;
+    };
+    this.cm.setOption('extraKeys', {
+      Tab: inTable('nextCell', (cm) => cm.replaceSelection('\t')),
+      'Shift-Tab': inTable('previousCell'),
+      Enter: inTable('nextRow', (cm) => cm.replaceSelection('\n')),
+      'Shift-Enter': (cm) => cm.replaceSelection('\n'),
+    });
     // Comments shift with each change as it happens, so two separate insertions, such as a
     // footnote mark and its definition, never stretch a comment over the text between them.
     // `beforeChange` fires against the text as it is right before each change, undo and redo included.

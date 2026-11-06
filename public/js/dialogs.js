@@ -3,6 +3,9 @@
 import { api } from './api.js';
 import { COLORS, COLOR_HEX } from '/shared/comments.js';
 import { COMMANDS, matchingCommands } from '/shared/markup.js';
+import { TABLE_COMMANDS } from '/shared/table.js';
+
+const PALETTE = [...COMMANDS, ...TABLE_COMMANDS];
 
 export const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
@@ -287,7 +290,7 @@ export function browseSheet({ mode, title, message, action, dir, name = '' }) {
 /** The command palette: filter by name, ↑/↓ to move, Enter or double-click to run, Esc to close. */
 export function paletteSheet() {
   return sheet((close) => {
-    let matches = COMMANDS;
+    let matches = PALETTE;
     let chosen = 0;
     const input = h('input', { type: 'search', placeholder: 'Markup command', autofocus: true, 'aria-label': 'Search' });
     const list = h('ul', { class: 'palette-list' });
@@ -307,7 +310,7 @@ export function paletteSheet() {
       list.children[chosen]?.scrollIntoView({ block: 'nearest' });
     };
     input.addEventListener('input', () => {
-      matches = matchingCommands(input.value);
+      matches = matchingCommands(input.value, PALETTE);
       chosen = 0;
       draw();
     });
@@ -342,7 +345,16 @@ export function showReminder() {
       h('button', { class: 'close', title: 'Close', onclick: () => panel.remove() }, '×')),
     h('table', {},
       h('thead', {}, h('tr', {}, h('th', { text: 'Command' }), h('th', { text: 'What it inserts' }))),
-      h('tbody', {}, COMMANDS.map((c) => h('tr', {}, h('td', { text: c.name }), h('td', {}, h('code', { text: c.inserts })))))));
+      h('tbody', {}, COMMANDS.map((c) => h('tr', {}, h('td', { text: c.name }), h('td', {}, h('code', { text: c.inserts })))))),
+    h('table', {},
+      h('thead', {}, h('tr', {}, h('th', { text: 'In a table' }), h('th', { text: 'What it does' }))),
+      h('tbody', {}, [
+        ['Tab', 'Next cell, adding a row after the last; lines the table up'],
+        ['Shift+Tab', 'Previous cell'],
+        ['Enter', 'Same column in the next row; on an empty last row, leaves the table'],
+        ['Shift+Enter', 'A new line'],
+        ...TABLE_COMMANDS.map((c) => [c.name, c.inserts]),
+      ].map(([name, what]) => h('tr', {}, h('td', { text: name }), h('td', { text: what }))))));
   let drag = null;
   panel.firstChild.addEventListener('mousedown', (e) => {
     const rect = panel.getBoundingClientRect();

@@ -240,6 +240,34 @@ export function reanchor(comment, body) {
   return best < 0 ? fallback : { start: best, length: quote.length };
 }
 
+/**
+ * Like `reanchor`, but when the quote is gone it also accepts the quote with its spaces changed, as
+ * lining up a table changes them. Returns { start, length, quote } with the text it found.
+ */
+export function reanchorLoose(comment, body) {
+  const exact = reanchor(comment, body);
+  if (exact.length > 0 || comment.quote.trim() === '') return { ...exact, quote: comment.quote };
+  const tokens = comment.quote.trim().match(/\||\s+|[^\s|]+/g);
+  const isSpace = (t) => t != null && /^\s+$/.test(t);
+  let pattern = '';
+  tokens.forEach((token, i) => {
+    const before = tokens[i - 1];
+    const after = tokens[i + 1];
+    if (isSpace(token)) pattern += before === '|' || after === '|' ? '\\s*' : '\\s+';
+    else if (token === '|') {
+      if (before != null && !isSpace(before)) pattern += '[ \\t]*';
+      pattern += '\\|';
+      if (after != null && !isSpace(after)) pattern += '[ \\t]*';
+    } else pattern += token.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  });
+  let best = null;
+  for (const match of body.matchAll(new RegExp(pattern, 'g'))) {
+    if (!best || Math.abs(match.index - comment.start) < Math.abs(best.index - comment.start)) best = match;
+  }
+  if (!best) return { ...exact, quote: comment.quote };
+  return { start: best.index, length: best[0].length, quote: best[0] };
+}
+
 // MARK: Merging
 
 function movedOutside(base, theirs) {

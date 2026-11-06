@@ -7,10 +7,11 @@ import {
 import { planMove } from '/shared/moves.js';
 import { applyMarkup, latestLanguage, changedSpan, Finder, expandTemplate } from '/shared/markup.js';
 import {
-  shiftRange, trimRange, reanchor, mergeComments, placedOutside, repaired, sameComments, highlight,
+  shiftRange, trimRange, reanchor, reanchorLoose, mergeComments, placedOutside, repaired, sameComments, highlight,
   newCommentID, wholeSeconds,
 } from '/shared/comments.js';
 import { exportChapter, fileTitle, timestamped } from '/shared/export.js';
+import { TABLE_COMMANDS, editTable, findTable, leaveTable } from '/shared/table.js';
 
 const clone = (value) => structuredClone(value);
 
@@ -448,6 +449,10 @@ export class BookModel {
 
   async apply(command) {
     if (!this.editor || !this.book || this.openNodeID == null) return;
+    if (TABLE_COMMANDS.some((c) => c.id === command)) {
+      if (!this.tableCommand(command) && command !== 'insertTable' && !this.cursorInTable()) this.ui.beep();
+      return;
+    }
     let picturePath = '';
     if (command === 'picture') {
       picturePath = await this.ui.choosePicture(this.book.root);
@@ -463,6 +468,72 @@ export class BookModel {
     if (!this.showsMarkup) this.setShowsMarkup(true);
     const { anchor, head } = this.editor.selection;
     this.editor.replace(applyMarkup(command, this.buffer, anchor, head, { language, picturePath }));
+  }
+
+  // MARK: Tables
+
+  /** Whether the editor's cursor is in a pipe table of the open text. */
+  cursorInTable() {
+    if (!this.editor || this.openNodeID == null) return false;
+    return findTable(this.buffer, this.editor.selection.head) != null;
+  }
+
+  /**
+   * A table command at the editor's cursor: Tab, Shift+Tab, and Enter in a table, and the table
+   * commands. Returns false when the cursor is not in a table, so the key can do what it usually does.
+   */
+  tableCommand(command) {
+    if (!this.editor || this.openNodeID == null) return false;
+    const text = this.editor.cm.getValue();
+    const { head } = this.editor.selection;
+    const result = command === 'nextRow'
+      ? leaveTable(text, head) ?? editTable('nextRow', text, head)
+      : editTable(command, text, head);
+    if (!result) {
+      if (command === 'insertTable' || findTable(text, head)) this.ui.beep();
+      return false;
+    }
+    if (!this.showsMarkup) this.setShowsMarkup(true);
+    const table = result.start != null ? findTable(text, head) : null;
+    const kept = table ? this.commentsIn(this.openNodeID, text, table.start, table.end) : [];
+    this.editor.replace(result);
+    // Inside a key handler the buffer catches up only after it returns, so the editor's text is used.
+    this.reanchorComments(kept, this.openNodeID, this.editor.cm.getValue());
+    return true;
+  }
+
+  /**
+   * A table command on a cell of a rendered table: `offset` is any body offset inside the table and
+   * `at` names the cell. The edit goes through the view, so the view can undo it.
+   */
+  async tableCommandAt(command, nodeID, offset, at, view) {
+    const body = this.liveBodyOf(nodeID);
+    const result = editTable(command, body, offset, at);
+    if (!result) return this.ui.beep();
+    const kept = this.commentsIn(nodeID, body, result.start, result.end);
+    await view.splice({ nodeID, start: result.start, length: result.end - result.start },
+      result.text.slice(result.start, result.start + result.length));
+    this.reanchorComments(kept, nodeID);
+  }
+
+  /** Comments inside [start, end) of a body, each with the text it covers there. */
+  commentsIn(nodeID, body, start, end) {
+    return this.comments.filter((c) => c.nodeID === nodeID && c.start >= start && c.start + c.length <= end)
+      .map((c) => ({ comment: c, quote: c.length > 0 ? body.substr(c.start, c.length) : c.quote }));
+  }
+
+  /** Lining up a table moves every cell, so the comments in it find their words again. */
+  reanchorComments(kept, nodeID, body = this.liveBodyOf(nodeID)) {
+    if (!kept.length) return;
+    for (const { comment, quote } of kept) {
+      comment.quote = quote;
+      const found = reanchorLoose(comment, body);
+      Object.assign(comment, trimRange(found, body));
+      comment.quote = body.substr(comment.start, comment.length) || found.quote;
+    }
+    this.commentsDirty = true;
+    this.emit('comments');
+    this.serial(() => this.saveComments());
   }
 
   // MARK: Typing in the rendered views

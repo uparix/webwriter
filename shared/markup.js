@@ -17,11 +17,11 @@ export const COMMANDS = [
 ];
 
 /** The palette finds a command by its name, so "foot" reaches Footnote and "pic" reaches Picture. */
-export function matchingCommands(query) {
+export function matchingCommands(query, commands = COMMANDS) {
   const needle = query.trim().toLowerCase();
-  if (needle === '') return COMMANDS;
-  const words = COMMANDS.filter((c) => c.name.toLowerCase().split(' ').some((w) => w.startsWith(needle)));
-  const anywhere = COMMANDS.filter((c) => c.name.toLowerCase().includes(needle) && !words.includes(c));
+  if (needle === '') return commands;
+  const words = commands.filter((c) => c.name.toLowerCase().split(' ').some((w) => w.startsWith(needle)));
+  const anywhere = commands.filter((c) => c.name.toLowerCase().includes(needle) && !words.includes(c));
   return [...words, ...anywhere];
 }
 

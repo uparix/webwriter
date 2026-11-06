@@ -12,6 +12,7 @@ import {
 } from './dialogs.js';
 import { api } from './api.js';
 import { COMMANDS } from '/shared/markup.js';
+import { TABLE_COMMANDS } from '/shared/table.js';
 import { COLOR_HEX } from '/shared/comments.js';
 import { divisions, isGroup, isTrash, manuscript, effectiveUnit, STATUSES, UNITS } from '/shared/tree.js';
 
@@ -54,22 +55,71 @@ const ui = {
   previewFollow(nodeID, line) {
     if (nodeID) rendered.followLine(nodeID, line);
   },
+  /** Add Comment when text is selected, and the table commands when the cursor is in a table. */
   editorContextMenu(event) {
-    if (!model.reviewSelection) return;
+    const inTable = model.cursorInTable();
+    if (!model.reviewSelection && !inTable) return;
     event.preventDefault();
-    showMenu([{ label: 'Add Comment…', shortcut: '⌃⌘M', action: () => model.requestComment() }, '-',
-      { label: 'Copy', action: () => document.execCommand('copy') }], event.clientX, event.clientY);
+    const items = [];
+    if (model.reviewSelection) items.push({ label: 'Add Comment…', shortcut: '⌃⌘M', action: () => model.requestComment() }, '-');
+    if (inTable) items.push(...tableItems((id) => model.apply(id), { insert: false }), '-');
+    items.push({ label: 'Copy', enabled: Boolean(model.reviewSelection), action: () => document.execCommand('copy') });
+    showMenu(items, event.clientX, event.clientY);
   },
-  renderedContextMenu(event) {
-    if (!model.reviewSelection) return;
+  /** In a rendered table, the commands work on the cell that was right-clicked. */
+  renderedContextMenu(event, view) {
+    const cell = event.target.closest?.('td, th');
+    const table = cell?.closest('table');
+    const section = table?.closest('section[data-node]');
+    const items = [];
+    if (model.reviewSelection) items.push({ label: 'Add Comment…', shortcut: '⌃⌘M', action: () => model.requestComment() }, '-');
+    if (cell && section) {
+      const nodeID = section.dataset.node;
+      const span = table.querySelector('span[data-o]');
+      const offset = span ? Number(span.dataset.o) : lineOffset(model.liveBodyOf(nodeID), Number(table.dataset.line));
+      const tr = cell.parentElement;
+      const at = { row: tr.parentElement.tagName === 'THEAD' ? 0 : tr.sectionRowIndex + 1, column: cell.cellIndex };
+      items.push(...tableItems((id) => model.tableCommandAt(id, nodeID, offset, at, view), { insert: false, format: false }), '-');
+    }
+    if (!items.length) return;
     event.preventDefault();
-    showMenu([{ label: 'Add Comment…', shortcut: '⌃⌘M', action: () => model.requestComment() }, '-',
-      { label: 'Copy', action: () => document.execCommand('copy') }], event.clientX, event.clientY);
+    items.push({ label: 'Copy', enabled: Boolean(model.reviewSelection), action: () => document.execCommand('copy') });
+    showMenu(items, event.clientX, event.clientY);
   },
   markersChanged() {
     editorMarkers?.update();
   },
 };
+
+/** Where a body line starts, as an offset. */
+function lineOffset(body, line) {
+  let offset = 0;
+  for (let i = 0; i < line && offset >= 0; i += 1) offset = body.indexOf('\n', offset) + 1;
+  return Math.max(0, offset);
+}
+
+/** Menu items for the table commands, grouped. `run(id)` runs one. */
+function tableItems(run, { insert = true, format = true } = {}) {
+  const item = (id, enabled = () => true) => {
+    const command = TABLE_COMMANDS.find((c) => c.id === id);
+    return { label: command.name, enabled, action: () => run(id) };
+  };
+  const groups = [
+    insert ? [item('insertTable')] : [],
+    format ? [item('formatTable')] : [],
+    ['rowAbove', 'rowBelow', 'columnLeft', 'columnRight'].map((id) => item(id)),
+    ['deleteRow', 'deleteColumn'].map((id) => item(id)),
+    ['alignLeft', 'alignCenter', 'alignRight', 'alignNone'].map((id) => item(id)),
+  ].filter((g) => g.length);
+  return groups.flatMap((g, i) => (i ? ['-', ...g] : g));
+}
+
+/** The table commands for the editor: Insert Table needs an open text, the rest a cursor in a table. */
+function editorTableItems() {
+  return tableItems((id) => model.apply(id)).map((it) => (it === '-' ? it : {
+    ...it, enabled: it.label === 'Insert Table' ? has.node() : has.node() && model.cursorInTable(),
+  }));
+}
 
 const model = new BookModel(ui);
 window.webwriter = model;
@@ -124,6 +174,8 @@ const MENUS = [
       keys: { emphasis: ['mod+KeyI'], strong: ['mod+KeyB'], inlineCode: ['mod+KeyE'] }[c.id],
       enabled: has.node, action: () => model.apply(c.id), editorOnly: true,
     })),
+    '-',
+    { label: 'Table', enabled: has.node, submenu: () => editorTableItems() },
     '-',
     { label: 'Command Palette…', shortcut: '⌘K', keys: ['mod+KeyK'], enabled: has.node, action: () => openPalette() },
   ] },
@@ -350,6 +402,7 @@ const BAR_GROUPS = [
   [['subsection', 'H1'], ['lowerSubsection', 'H2']],
   [['bullet', '•≡'], ['numbered', '1.'], ['quotation', '❝']],
   [['link', '🔗'], ['picture', '🖼'], ['codeBlock', '<span class="mono">{ }</span>'], ['footnote', 'x¹']],
+  [['table', '<span class="table-icon">▦</span> ▾']],
 ];
 
 function buildMarkupBar() {
@@ -357,6 +410,18 @@ function buildMarkupBar() {
   const groups = BAR_GROUPS.map((group) => {
     const el = h('div', { class: 'bar-group' });
     for (const [id, label] of group) {
+      if (id === 'table') {
+        // The table button opens the table commands.
+        const button = h('button', { class: 'bar-button', 'data-command': id, title: 'Table\nInsert a table, or change the one under the cursor' });
+        button.innerHTML = label;
+        button.addEventListener('mousedown', (e) => e.preventDefault());
+        button.addEventListener('click', () => {
+          const rect = button.getBoundingClientRect();
+          showMenu(editorTableItems(), rect.left, rect.bottom + 2);
+        });
+        el.append(button);
+        continue;
+      }
       const command = COMMANDS.find((c) => c.id === id);
       const button = h('button', {
         class: 'bar-button', 'data-command': id,
@@ -378,7 +443,8 @@ function buildMarkupBar() {
       if (index) items.push('-');
       for (const b of g.children) {
         const command = COMMANDS.find((c) => c.id === b.dataset.command);
-        items.push({ label: command.name, enabled: has.node, action: () => model.apply(command.id) });
+        if (command) items.push({ label: command.name, enabled: has.node, action: () => model.apply(command.id) });
+        else items.push({ label: 'Table', enabled: has.node, submenu: editorTableItems() });
       }
     });
     const rect = more.getBoundingClientRect();

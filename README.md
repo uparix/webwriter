@@ -38,6 +38,25 @@ git, make to `manuscript/`, `book.json`, or `comments.json` reach the page withi
   version to keep, and nothing is written until the writer chooses;
 - a `comments.json` that cannot be read is never written over.
 
+## Tables
+
+Pipe tables (`| a | b |`) can be edited in the Markdown editor:
+
+| Key | In a table |
+|---|---|
+| Tab | Next cell, selecting its text; after the last cell, a new row. Lines the table up. |
+| Shift+Tab | Previous cell. |
+| Enter | Same column in the next row, adding one at the end. On an empty last row, leaves the table. |
+| Shift+Enter | A new line, as usual. |
+
+Markup → Table, the table button at the end of the markup bar, the command palette, and the
+editor's right-click menu have Insert Table, Format Table, Insert Row Above/Below, Insert Column
+Left/Right, Delete Row/Column, and the column alignments. Right-clicking a cell in the preview or a
+reading view offers the row, column, and alignment commands for that cell. Only the table's own
+lines change. Lining up a table changes the spaces in it, so comments inside it find their words
+again, even when the quote's spacing changed. Table rows are monospaced in the editor so the
+columns line up on screen.
+
 ## Checking a book
 
 Agents and scripts that edit `book.json` or `comments.json` can check their work with the code the
@@ -68,7 +87,7 @@ Where the native app uses a macOS convention, Webwriter uses the closest one a w
 |---|---|
 | `bin/webwriter.js` | The command: starts the server and opens a window, or runs `check`. |
 | `src/server/` | The book folder on disk: headers, loading and saving, moves, `book.json`, comments, pictures, Pandoc, watching, and the HTTP API. |
-| `shared/` | Code the server and the page share: the tree, export, fences, comments (format, anchors, merging), and the markup commands and find. |
+| `shared/` | Code the server and the page share: the tree, export, fences, comments (format, anchors, merging), the markup commands and find, and table editing. |
 | `public/` | The page. `js/model.js` is the open book (the port of `BookModel`), `js/render.js` renders Markdown with body offsets, `js/rendered.js` makes the preview and reading view typeable, `js/editor.js` is the CodeMirror editor. |
 | `test/` | Tests, including the export parity tests against Bookwriter's fixtures. |
 

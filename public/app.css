@@ -401,9 +401,9 @@ body.no-book #sidebar, body.no-book #sidebar-split { display: none; }
 /* CodeMirror's scroller reaches 50px past its visible right edge, to hide its own scrollbar. */
 .CodeMirror-scroll > .marker-layer { right: 54px; }
 
-/* Tags: a pill in the tag's color */
+/* Tags: a box with rounded corners in the tag's color */
 .tag {
-  background: var(--tag, #DCDCE0); color: #1b1b1b; border-radius: 999px; padding: 0.05em 0.6em;
+  background: var(--tag, #DCDCE0); color: #1b1b1b; border-radius: 4px; padding: 0.1em 0.45em;
   font: 600 0.78em/1.5 var(--sans); white-space: nowrap; vertical-align: 0.08em; -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 .tag-sheet { width: 420px; }

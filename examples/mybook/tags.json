@@ -1,0 +1,8 @@
+{
+  "tags" : {
+    "draft" : "yellow",
+    "fact check" : "orange",
+    "rewrite" : "purple"
+  },
+  "version" : 1
+}

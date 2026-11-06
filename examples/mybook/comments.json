@@ -1,0 +1,143 @@
+{
+  "comments" : [
+    {
+      "author" : "Lena Hofmann",
+      "date" : "2026-10-20T08:12:00Z",
+      "id" : "example-01",
+      "length" : 36,
+      "nodeID" : "preface",
+      "quote" : "This is a book about writing a book.",
+      "start" : 0,
+      "text" : "Strong opener. Could we say in one more sentence who the book is for?"
+    },
+    {
+      "author" : "Marco Rossi",
+      "color" : "blue",
+      "date" : "2026-10-21T16:40:00Z",
+      "id" : "example-02",
+      "length" : 27,
+      "nodeID" : "preface",
+      "quote" : "none of them takes a number",
+      "start" : 287,
+      "text" : "Readers may not know yet what a number is here. Link to the chapter on units?"
+    },
+    {
+      "author" : "Lena Hofmann",
+      "color" : "pink",
+      "date" : "2026-10-20T08:20:00Z",
+      "id" : "example-03",
+      "length" : 56,
+      "nodeID" : "dedication",
+      "quote" : "For everyone who has lost a chapter to a word processor.",
+      "start" : 1,
+      "text" : "Love it. Keep exactly as is."
+    },
+    {
+      "author" : "Marco Rossi",
+      "color" : "green",
+      "date" : "2026-10-21T17:02:00Z",
+      "id" : "example-04",
+      "length" : 124,
+      "nodeID" : "groups-and-sections",
+      "quote" : "- A **group** is a folder. It can hold other pieces, and it has prose of its own.\n- A **section** is a single Markdown file.",
+      "start" : 31,
+      "text" : "This list spans two lines on purpose: a comment can cover a whole block, not just a few words."
+    },
+    {
+      "author" : "Lena Hofmann",
+      "date" : "2026-10-22T09:15:00Z",
+      "id" : "example-05",
+      "length" : 23,
+      "nodeID" : "units",
+      "quote" : "| Chapter | yes | yes |",
+      "start" : 134,
+      "text" : "Should a chapter always start on a right-hand page in print?"
+    },
+    {
+      "author" : "Andreas Neuenschwander",
+      "color" : "purple",
+      "date" : "2026-10-22T11:03:00Z",
+      "id" : "example-06",
+      "length" : 24,
+      "nodeID" : "markup",
+      "quote" : "the command palette (⌘K)",
+      "start" : 24,
+      "text" : "Mention that the palette only works while a text is open."
+    },
+    {
+      "author" : "Marco Rossi",
+      "date" : "2026-10-22T13:47:00Z",
+      "id" : "example-07",
+      "length" : 24,
+      "nodeID" : "code",
+      "quote" : "return len(body.split())",
+      "start" : 309,
+      "text" : "Bookwriter counts words the same way. Worth saying so in the prose above?"
+    },
+    {
+      "author" : "Lena Hofmann",
+      "color" : "green",
+      "date" : "2026-10-22T14:05:00Z",
+      "id" : "example-08",
+      "length" : 10,
+      "nodeID" : "try-it",
+      "quote" : "lighthouse",
+      "start" : 36,
+      "text" : "Nice touch to tie this to the afterword."
+    },
+    {
+      "author" : "Andreas Neuenschwander",
+      "color" : "blue",
+      "date" : "2026-10-22T14:10:00Z",
+      "id" : "example-09",
+      "length" : 21,
+      "nodeID" : "try-it",
+      "quote" : "Search the whole book",
+      "start" : 0,
+      "text" : "Two comments that start on one line share a single icon. Click it to see both."
+    },
+    {
+      "author" : "Marco Rossi",
+      "date" : "2026-10-23T08:30:00Z",
+      "id" : "example-10",
+      "length" : 53,
+      "nodeID" : "footnotes",
+      "quote" : "An inline note keeps its text right where it is used.",
+      "start" : 147,
+      "text" : "Give a reason to prefer inline notes over numbered ones."
+    },
+    {
+      "author" : "Lena Hofmann",
+      "color" : "pink",
+      "date" : "2026-10-23T09:12:00Z",
+      "id" : "example-11",
+      "length" : 23,
+      "nodeID" : "exporting",
+      "quote" : "Export Chapters to Word",
+      "start" : 207,
+      "text" : "Note that this needs Pandoc installed."
+    },
+    {
+      "author" : "Andreas Neuenschwander",
+      "color" : "purple",
+      "date" : "2026-10-23T10:00:00Z",
+      "id" : "example-12",
+      "length" : 14,
+      "nodeID" : "reading-and-export",
+      "quote" : "Something more",
+      "start" : 206,
+      "text" : "Leftover text from testing? Please remove before export."
+    },
+    {
+      "author" : "Marco Rossi",
+      "date" : "2026-10-23T10:45:00Z",
+      "id" : "example-13",
+      "length" : 62,
+      "nodeID" : "afterword",
+      "quote" : "Like a lighthouse, a good outline is easy to find in the dark.",
+      "start" : 0,
+      "text" : "Lovely closing image."
+    }
+  ],
+  "version" : 1
+}

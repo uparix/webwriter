@@ -221,7 +221,8 @@ const MENUS = [
       enabled: has.node, action: () => model.apply(c.id), editorOnly: true,
     })),
     '-',
-    { label: 'Tag…', shortcut: '⌥⌘T', keys: ['mod+alt+KeyT'], enabled: has.node, action: () => model.apply('tag') },
+    // Off the Mac, Ctrl+Alt+T opens a terminal on many Linux desktops, so Shift is added. Without it, it works where it is free.
+    { label: 'Tag…', shortcut: '⌥⌘T', keys: isMac ? ['mod+alt+KeyT'] : ['mod+alt+shift+KeyT', 'mod+alt+KeyT'], enabled: has.node, action: () => model.apply('tag') },
     { label: 'Tag Colors…', enabled: has.book, action: () => ui.showTagColors() },
     { label: 'Insert Diagram…', enabled: has.node, action: () => model.apply('diagram') },
     { label: 'Insert Mermaid Diagram', enabled: has.node, action: () => model.apply('mermaid') },
@@ -231,7 +232,7 @@ const MENUS = [
     { label: 'Command Palette…', shortcut: '⌘K', keys: ['mod+KeyK'], enabled: has.node, action: () => openPalette() },
   ] },
   { label: 'Review', items: [
-    { label: 'Add Comment…', shortcut: '⌃⌘M', keys: [isMac ? 'ctrl+mod+KeyM' : 'ctrl+alt+KeyM'], enabled: () => model.reviewSelection != null, action: () => model.requestComment() },
+    { label: 'Add Comment…', shortcut: '⌃⌘M', keys: [isMac ? 'ctrl+mod+KeyM' : 'mod+alt+KeyM'], enabled: () => model.reviewSelection != null, action: () => model.requestComment() },
     { label: 'Show Comments', checked: () => model.showsComments, enabled: has.book, action: () => model.setShowsComments(!model.showsComments) },
     { label: 'Comments Panel', shortcut: '⌥⌘0', keys: ['mod+alt+Digit0'], checked: () => model.commentsPanelVisible, enabled: has.book, action: () => model.setCommentsPanel(!model.commentsPanelVisible) },
   ] },

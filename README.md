@@ -16,7 +16,8 @@ node bin/webwriter.js ~/my-book   # opens this book folder
 ```
 
 The server listens on `127.0.0.1:4848` (or the next free port) and opens a window: an app-style
-window in Chrome, Edge, Brave, or Chromium when one is installed, otherwise the default browser. A
+window in Chrome, Edge, Brave, or Chromium when one is installed (on Linux, when it is on the
+`PATH`), otherwise the default browser. A
 folder with no manuscript becomes an empty book. Closing the last window stops the server. When the
 server is started again, windows still open from before reconnect on their own within a few seconds
 and load the page again, and no new window is opened.
@@ -222,7 +223,9 @@ node bin/webwriter.js check /path/to/book
 Webwriter runs in a web page, which settles a few things:
 
 - **Menus** are a menu bar inside the page. Browsers keep ⌘N and ⇧⌘N for themselves, so New Text is
-  also ⌥⌘N and New Folder ⌥⇧⌘N. On Windows and Linux, ⌘ is Ctrl.
+  also ⌥⌘N and New Folder ⌥⇧⌘N. On Windows and Linux, ⌘ is Ctrl, with two changes: Tag is
+  Ctrl+Alt+Shift+T, as many Linux desktops open a terminal on Ctrl+Alt+T, and Add Comment (⌃⌘M) is
+  Ctrl+Alt+M.
 - **Open, save, and folder panels** browse the server's folders, since the page cannot see the disk.
   The Picture command moves a file from there into `images/`, or takes an upload from the browser's
   computer.

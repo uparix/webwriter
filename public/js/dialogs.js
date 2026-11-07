@@ -45,9 +45,16 @@ const isMac = navigator.platform.toUpperCase().includes('MAC');
 export function shortcutLabel(shortcut) {
   if (!shortcut) return '';
   if (isMac) return shortcut;
+  if (OTHER_SYSTEMS[shortcut]) return OTHER_SYSTEMS[shortcut];
   return shortcut.replace('⌃', 'Ctrl+').replace('⌥', 'Alt+').replace('⇧', 'Shift+').replace('⌘', 'Ctrl+')
     .replace('⌫', 'Backspace');
 }
+
+/**
+ * Shortcuts that differ off the Mac, where ⌘ becomes Ctrl: ⌃⌘M would be Ctrl twice, and Ctrl+Alt+T
+ * opens a terminal on Ubuntu and other Linux desktops. main.js gives them the same keys.
+ */
+const OTHER_SYSTEMS = { '⌃⌘M': 'Ctrl+Alt+M', '⌥⌘T': 'Ctrl+Alt+Shift+T' };
 
 // MARK: Sound
 

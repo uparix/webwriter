@@ -5,6 +5,7 @@
 //   webwriter check <book folder>
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import { createServer } from '../src/server/server.js';
 import { check, USAGE } from '../src/server/check.js';
 
@@ -99,7 +100,7 @@ function openUnlessReconnected(url) {
   }, RECONNECT_WAIT);
 }
 
-/** An app-style window in Chrome or Edge when installed, otherwise the default browser. */
+/** An app-style window in Chrome, Edge, Brave, or Chromium when installed (macOS and Linux), otherwise the default browser. */
 function openWindow(url) {
   const launch = (command, commandArgs) => {
     try {
@@ -119,8 +120,26 @@ function openWindow(url) {
   } else if (process.platform === 'win32') {
     launch('cmd', ['/c', 'start', '', url]);
   } else {
+    const chrome = ['google-chrome', 'google-chrome-stable', 'microsoft-edge', 'microsoft-edge-stable', 'brave-browser',
+      'brave', 'chromium', 'chromium-browser'].map(onPath).find(Boolean);
+    if (chrome && launch(chrome, [`--app=${url}`, '--new-window'])) return;
     launch('xdg-open', [url]);
   }
+}
+
+/** The full path of an executable command on the PATH, or null. */
+function onPath(command) {
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    if (!dir) continue;
+    const file = path.join(dir, command);
+    try {
+      fs.accessSync(file, fs.constants.X_OK);
+      if (fs.statSync(file).isFile()) return file;
+    } catch {
+      // Not in this folder.
+    }
+  }
+  return null;
 }
 
 process.on('SIGINT', () => process.exit(0));

@@ -25,7 +25,7 @@ export function parseBookFile(text) {
   if (typeof data.title !== 'string') throw new Error('title has the wrong type. Expected to decode String.');
   if (!('version' in data) || data.version === null) throw new Error('"version" is missing at the top level.');
   if (!Number.isInteger(data.version)) throw new Error('version has the wrong type. Expected to decode Int.');
-  if (data.version !== 1) throw new Error(`"version" is ${data.version}, and this Bookwriter knows only version 1.`);
+  if (data.version !== 1) throw new Error(`"version" is ${data.version}, and Webwriter knows only version 1.`);
   return data.title;
 }
 

@@ -47,13 +47,13 @@ function tree(root) {
   return out;
 }
 
-test('the spec book exports the same Markdown as Bookwriter', () => {
+test('the spec book exports the expected Markdown', () => {
   const book = loadBook(copy('spec-book'));
   assert.deepEqual(book.warnings, []);
   assert.equal(exportBook(book.nodes).markdown, fs.readFileSync(path.join(fixtures, 'spec-book.expected.md'), 'utf8'));
 });
 
-test('the rich book exports the same report as Bookwriter', () => {
+test('the rich book exports the expected report', () => {
   const book = loadBook(copy('rich-book'));
   assert.equal(report(book), fs.readFileSync(path.join(fixtures, 'rich-book.expected.txt'), 'utf8'));
 });
@@ -158,7 +158,7 @@ test('a 100th sibling widens every prefix', () => {
   assert.equal(names[99], '1000-s99.md');
 });
 
-test('comments.json reads and writes in Bookwriter layout', () => {
+test('comments.json reads and writes in its stable layout', () => {
   const root = copy('spec-book');
   const comments = [{
     id: 'a', nodeID: 'the-book', start: 0, length: 3, quote: 'Boo', author: 'Lena', date: '2026-10-20T08:20:00.5+02:00', text: 'x / "y"',

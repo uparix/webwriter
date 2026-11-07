@@ -6,9 +6,9 @@ status: done
 role: body
 unit: text
 ---
-Bookwriter stops at the manuscript. Run Pandoc from the book folder so picture paths resolve:
+Webwriter makes PDF and Word files itself. For other formats, such as EPUB, export the manuscript and run Pandoc from the book folder, so picture paths resolve:
 
 ```bash
-cd "A Field Guide to Bookwriter"
+cd mybook
 pandoc manuscript.md -o book.epub
 ```

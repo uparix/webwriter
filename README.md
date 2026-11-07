@@ -1,9 +1,9 @@
 # Webwriter
 
-A writing application for one long book, in the browser. It is a Node.js port of
-[Bookwriter](../bookwriter), the native macOS app, and reads and writes the same book folders byte
-for byte, so both can work on the same book. `../bookwriter/specs/ARCHITECTURE.md` describes every
-feature, and `../bookwriter/specs/FILE-FORMATS.md` the `book.json` and `comments.json` files.
+A writing application for one long book, in the browser. A book is a folder of plain files: a tree
+of Markdown files and folders for the text, and small JSON files for the title, the comments, and the
+tag colors. A Node.js server reads and writes the folder, and the page shows the outline, an editor,
+and the rendered text.
 
 ## Running
 
@@ -152,8 +152,9 @@ Everything after this page, numbered.
 
 The list is made from the outline each time the book is shown or exported, so renaming, moving, or
 adding pieces never leaves it stale. In the preview and the reading views a click on an entry opens
-that piece. The exported Markdown, the PDF, and Word write the list out as numbered lines. The
-macOS app shows the fence as an empty code block. The example book's Contents page is an index.
+that piece. The exported Markdown, the PDF, and Word write the list out as numbered lines. Other
+Markdown programs show the fence as an empty code block. The example book's Contents page is an
+index.
 
 ## Word export
 
@@ -179,9 +180,9 @@ app uses. It prints errors and warnings and exits with 1 when there are errors.
 node bin/webwriter.js check /path/to/book
 ```
 
-## Differences from the macOS app
+## Working in a browser
 
-Where the native app uses a macOS convention, Webwriter uses the closest one a web page has:
+Webwriter runs in a web page, which settles a few things:
 
 - **Menus** are a menu bar inside the page. Browsers keep ⌘N and ⇧⌘N for themselves, so New Text is
   also ⌥⌘N and New Folder ⌥⇧⌘N. On Windows and Linux, ⌘ is Ctrl.
@@ -190,8 +191,8 @@ Where the native app uses a macOS convention, Webwriter uses the closest one a w
   computer.
 - **Export PDF** opens a print view of the manuscript on Letter pages with page numbers; choose
   "Save as PDF" in the print dialog. The suggested file name is the timestamped export name.
-- **Export Chapters to Word** runs Pandoc on the server, as the native app does. **Export Word**,
-  the whole book as one Word file, is Webwriter's own (see [Word export](#word-export)).
+- **Export Word** and **Export Chapters to Word** run Pandoc on the server (see
+  [Word export](#word-export)).
 - **Preferences** (last book, recent books, review author, comment color) are kept in
   `~/.config/webwriter/preferences.json` (`WEBWRITER_PREFS` overrides the path).
 
@@ -202,8 +203,8 @@ Where the native app uses a macOS convention, Webwriter uses the closest one a w
 | `bin/webwriter.js` | The command: starts the server and opens a window, or runs `check`. |
 | `src/server/` | The book folder on disk: headers, loading and saving, moves, `book.json`, comments, pictures, Pandoc, watching, and the HTTP API. |
 | `shared/` | Code the server and the page share: the tree, export, fences, comments (format, anchors, merging), the markup commands and find, and table editing. |
-| `public/` | The page. `js/model.js` is the open book (the port of `BookModel`), `js/render.js` renders Markdown with body offsets, `js/rendered.js` makes the preview and reading view typeable, `js/editor.js` is the CodeMirror editor. |
-| `test/` | Tests, including the export parity tests against Bookwriter's fixtures. |
+| `public/` | The page. `js/model.js` is the open book, `js/render.js` renders Markdown with body offsets, `js/rendered.js` makes the preview and reading view typeable, `js/editor.js` is the CodeMirror editor. |
+| `test/` | Tests, including the export tests against the fixture books in `test/fixtures/`. |
 
 ## Tests
 
@@ -211,5 +212,5 @@ Where the native app uses a macOS convention, Webwriter uses the closest one a w
 npm test
 ```
 
-The parity tests in `test/core.test.js` load the two fixture books copied from Bookwriter and
-require the export to match `*.expected.md` and `*.expected.txt` byte for byte.
+The export tests in `test/core.test.js` load the two fixture books in `test/fixtures/` and require
+the export to match `*.expected.md` and `*.expected.txt` byte for byte.

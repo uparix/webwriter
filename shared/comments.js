@@ -52,7 +52,7 @@ function place(path) {
   return path === '' ? 'the top level' : path;
 }
 
-/** Comments from the text of a comments.json, decoded the way Bookwriter decodes them. Throws when unreadable. */
+/** Comments from the text of a comments.json. Throws when unreadable. */
 export function decodeComments(text) {
   let data;
   try {
@@ -136,14 +136,14 @@ export function commentProblems(comments, findBody = null) {
   const add = (severity, message, commentID = null) => problems.push({ severity, message, commentID });
   for (const comment of comments) {
     const id = comment.id === '' ? null : comment.id;
-    if (comment.id === '') add('error', 'A comment has an empty id. Bookwriter gives it a new one.');
+    if (comment.id === '') add('error', 'A comment has an empty id. Webwriter gives it a new one.');
     if (comment.id !== '') {
-      if (seen.has(comment.id)) add('error', 'The id is used by more than one comment. Bookwriter keeps only the first.', id);
+      if (seen.has(comment.id)) add('error', 'The id is used by more than one comment. Webwriter keeps only the first.', id);
       seen.add(comment.id);
     }
-    if (comment.nodeID === '') add('error', 'nodeID is empty. Bookwriter drops the comment.', id);
-    if (comment.start < 0) add('error', 'start is negative. Bookwriter places the comment by its quote.', id);
-    if (comment.length < 0) add('error', 'length is negative. Bookwriter places the comment by its quote.', id);
+    if (comment.nodeID === '') add('error', 'nodeID is empty. Webwriter drops the comment.', id);
+    if (comment.start < 0) add('error', 'start is negative. Webwriter places the comment by its quote.', id);
+    if (comment.length < 0) add('error', 'length is negative. Webwriter places the comment by its quote.', id);
     if (!findBody || comment.nodeID === '') continue;
     const body = findBody(comment.nodeID);
     if (body == null) {
@@ -156,7 +156,7 @@ export function commentProblems(comments, findBody = null) {
     else if (!body.includes(comment.quote)) {
       add('warning', `The quote is not in the body of "${comment.nodeID}". The comment is shown without a highlight.`, id);
     } else {
-      add('warning', 'start and length do not cover the quote. Bookwriter moves the comment onto the nearest copy of the quote.', id);
+      add('warning', 'start and length do not cover the quote. Webwriter moves the comment onto the nearest copy of the quote.', id);
     }
   }
   return problems;

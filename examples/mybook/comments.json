@@ -18,7 +18,7 @@
       "length" : 27,
       "nodeID" : "preface",
       "quote" : "none of them takes a number",
-      "start" : 287,
+      "start" : 286,
       "text" : "Readers may not know yet what a number is here. Link to the chapter on units?"
     },
     {
@@ -72,7 +72,7 @@
       "nodeID" : "code",
       "quote" : "return len(body.split())",
       "start" : 309,
-      "text" : "Bookwriter counts words the same way. Worth saying so in the prose above?"
+      "text" : "Webwriter counts words the same way. Worth saying so in the prose above?"
     },
     {
       "author" : "Lena Hofmann",

@@ -1,4 +1,4 @@
-// The open book and everything the window shows about it. A port of Bookwriter's BookModel.
+// The open book and everything the window shows about it.
 // The server reads and writes the folder; this model holds the editor buffer and decides what to save.
 import { api, report } from './api.js';
 import {

@@ -857,7 +857,7 @@ window.addEventListener('pagehide', () => {
   });
 });
 window.addEventListener('beforeunload', (e) => {
-  // An unresolved conflict asks first, like quitting the native app.
+  // An unresolved conflict asks first, before the window closes.
   if (model.diskConflict) e.preventDefault();
 });
 

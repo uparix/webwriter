@@ -1,7 +1,7 @@
 {
   "name": "webwriter",
   "version": "1.0.0",
-  "description": "A writing application for one long book, in the browser. A Node.js port of Bookwriter.",
+  "description": "A writing application for one long book, in the browser.",
   "type": "module",
   "bin": {
     "webwriter": "bin/webwriter.js"

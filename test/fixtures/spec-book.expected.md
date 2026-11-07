@@ -1,8 +1,8 @@
-# Bookwriter
+# Webwriter
 
 Living spec. This is a draft. Expect it to change.
 
-Bookwriter is a small writing application for one long book. A book is an ordered tree of short documents. You write each document on its own, rearrange the tree by dragging, and export one manuscript.
+Webwriter is a small writing application for one long book. A book is an ordered tree of short documents. You write each document on its own, rearrange the tree by dragging, and export one manuscript.
 
 ## The book
 
@@ -219,7 +219,7 @@ A front-matter heading is emitted with Pandoc's unnumbered marker: `# Preface {-
 
 Footnote labels are prefixed with the section id during export, on both the reference and the definition. `[^1]` in the section whose id is `inward` is written as `[^inward-1]`. Inline notes have no label and need no prefix. Pandoc numbers the notes in the finished book. The labels in the source are not the numbers a reader sees.
 
-Bookwriter's PDF prints the front matter's notes at the end of the front matter, and each chapter's notes at the end of that chapter, including the notes from the sections inside it. A part's own notes, and the notes of a section that is not inside a chapter, are printed at the end of that part or section. Each of those groups is numbered from 1 in the order the notes appear.
+Webwriter's PDF prints the front matter's notes at the end of the front matter, and each chapter's notes at the end of that chapter, including the notes from the sections inside it. A part's own notes, and the notes of a section that is not inside a chapter, are printed at the end of that part or section. Each of those groups is numbered from 1 in the order the notes appear.
 
 Export of the example above:
 
@@ -257,7 +257,7 @@ class Foo {
 [^inward-1]: Toward higher-level policy.
 ````
 
-The application stops at that Markdown file. PDF, EPUB, and Word are Pandoc's job, run on the exported file. Picture paths are left as written, relative to the book folder. Run Pandoc from the book folder so a picture path resolves. Bookwriter does not grow a compile engine of its own.
+The application stops at that Markdown file. PDF, EPUB, and Word are Pandoc's job, run on the exported file. Picture paths are left as written, relative to the book folder. Run Pandoc from the book folder so a picture path resolves. Webwriter does not grow a compile engine of its own.
 
 Export Chapters to Word writes each front-matter piece and each chapter as its own Word file in a directory the writer chooses. A front-matter file is named `FM-title.docx` and holds that piece together with the sections inside it. A chapter file is named `cc-title.docx`, where `cc` is the chapter number written in at least two digits and `title` is that chapter's title, and it holds the sections inside the chapter. A part is not its own file. Pandoc does the conversion, run from the book folder so a picture path resolves.
 

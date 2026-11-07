@@ -6,7 +6,7 @@ status: revise
 role: body
 unit: section
 ---
-This is a book about writing a book. Each chapter shows one part of Bookwriter, and the chapter itself is built with the thing it describes.[^1]
+This is a book about writing a book. Each chapter shows one part of Webwriter, and the chapter itself is built with the thing it describes.[^1]
 
 Front matter is ordinary pieces whose role is *front*. The role is set on the **Front Matter** folder, and every piece inside follows it, so none of them takes a number.
 

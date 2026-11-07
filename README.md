@@ -104,15 +104,64 @@ preview, the reading views, the PDF, and Word.
   again within about a second.
 
 The editor is draw.io itself, in its embed mode. draw.io's web app (a pinned release of
-`jgraph/drawio`, checked against its published SHA-256) is kept in the repository in `vendor/drawio/`,
-so nothing needs downloading, and Webwriter serves it at `/drawio/`. Diagrams are then edited from Webwriter's own address, so no
-browser setting or ad blocker treats draw.io as a third party, and it works without the internet.
-`npm run fetch-drawio` downloads it again if it is missing. Without it, Webwriter falls back to draw.io's
-site, `https://embed.diagrams.net/`; `--drawio-url` (or `WEBWRITER_DRAWIO_URL`) names another copy.
+`jgraph/drawio`, checked against its published SHA-256) is kept in the repository in
+`vendor/drawio/`, so nothing needs downloading, and Webwriter serves it at `/drawio/`. Diagrams are
+then edited from Webwriter's own address, so no browser setting or ad blocker treats draw.io as a
+third party, and it works without the internet. `npm run fetch-drawio` downloads it again if it is
+missing. Without it, Webwriter falls back to draw.io's site, `https://embed.diagrams.net/`;
+`--drawio-url` (or `WEBWRITER_DRAWIO_URL`) names another copy.
 
 When a diagram is saved, Webwriter keeps draw.io's SVG in its light colors (draw.io writes colors for
 both light and dark mode, and a browser in dark mode would draw it dark on the white page) and drops
 draw.io's "Text is not SVG" note, which only Word would show.
+
+## Index
+
+An index is a text that lists every piece after it in the book, numbered by its place in the
+outline and indented by depth:
+
+```
+1  Getting Started
+    1.1  Find and Replace
+        1.1.1  The Editor
+            1.1.1.1  The Outline
+    ...
+2  Finishing
+```
+
+**New Index** (File menu, the ＋ button, or right-clicking the book row in the outline) asks for a
+title, Index unless changed, and adds the index first in the book, so it lists everything. Drag it
+anywhere: it lists the pieces after it. In a folder, those are its later siblings, then whatever
+follows the folder. The trash is left out.
+
+The index is an ordinary text whose body holds an `index` code fence, which may have text around it:
+
+````markdown
+Everything after this page, numbered.
+
+```index
+```
+````
+
+The list is made from the outline each time the book is shown or exported, so renaming, moving, or
+adding pieces never leaves it stale. In the preview and the reading views a click on an entry opens
+that piece. The exported Markdown, the PDF, and Word write the list out as numbered lines. The
+macOS app shows the fence as an empty code block. The example book's Contents page is an index.
+
+## Word export
+
+Both Word exports run [Pandoc](https://pandoc.org) on the server, which must be installed (for
+example `brew install pandoc`):
+
+- **Export Word…** (File menu) writes the whole manuscript, as Export Manuscript makes it, into one
+  `.docx`, saved where you choose under the timestamped export name.
+- **Export Chapters to Word…** writes one `.docx` for each front-matter piece and each chapter into a
+  folder.
+
+Pictures, diagrams, and tags (shaded in their colors) come along. A Pandoc filter
+(`src/server/breaks.lua`) turns the export's page breaks into Word page breaks, and its part and
+chapter numbers ("Part 1", "Chapter 3") into centered, bold paragraphs, which Word would otherwise
+drop.
 
 ## Checking a book
 
@@ -134,7 +183,8 @@ Where the native app uses a macOS convention, Webwriter uses the closest one a w
   computer.
 - **Export PDF** opens a print view of the manuscript on Letter pages with page numbers; choose
   "Save as PDF" in the print dialog. The suggested file name is the timestamped export name.
-- **Export Chapters to Word** runs Pandoc on the server, as the native app does.
+- **Export Chapters to Word** runs Pandoc on the server, as the native app does. **Export Word**,
+  the whole book as one Word file, is Webwriter's own (see [Word export](#word-export)).
 - **Preferences** (last book, recent books, review author, comment color) are kept in
   `~/.config/webwriter/preferences.json` (`WEBWRITER_PREFS` overrides the path).
 

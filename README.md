@@ -59,6 +59,12 @@ folder with no manuscript becomes an empty book. Closing the last window stops t
 server is started again, windows still open from before reconnect on their own within a few seconds
 and load the page again, and no new window is opened.
 
+A window signs in when it opens. Webwriter starts it at an address with a key,
+`http://127.0.0.1:4848/?key=…`, which it swaps for a cookie, so other programs and other users on the
+same computer cannot use the book through it. The address is printed when Webwriter starts. The cookie
+holds a secret kept in `~/.config/webwriter/session-key`, readable only by you, so windows stay signed
+in when Webwriter starts again. A page opened at the bare address asks you to use the printed one.
+
 Other books made in `examples/`, such as with New Book, are left out of git.
 
 **New Book…** (File menu, or the No Book Open screen) asks where the book goes and for its name,
@@ -71,7 +77,7 @@ changes; the template is `src/server/new-book-agents.md`.
 | Option | Meaning |
 |---|---|
 | `--port N` | Listen on port N, and stop if it is taken. `WEBWRITER_PORT` does the same. |
-| `--no-open` | Do not open a window. |
+| `--no-open` | Do not open a window. Open the printed address, with its key, instead. |
 | `--keep-running` | Keep running after the last window closes. |
 | `--drawio-url URL` | The draw.io editor for diagrams (default: the copy in `vendor/drawio/`, else `https://embed.diagrams.net/`). |
 | `-h`, `--help` | Show the options. |
@@ -550,7 +556,9 @@ through an SSH tunnel.
    When Webwriter also runs on your computer, port 4848 is taken there. Pick another port on your
    side, such as `ssh -L 4850:127.0.0.1:4848 user@other-machine`, and open that port in step 3.
 
-3. Open `http://127.0.0.1:4848` in your browser.
+3. Open the address Webwriter printed in step 1, `http://127.0.0.1:4848/?key=…`, in your browser.
+   With another port on your side, change the port in it. The key signs the browser in, and it stays
+   signed in when Webwriter is started again.
 
 What happens where:
 
@@ -560,6 +568,23 @@ What happens where:
 - A picture can come from either side: one already on the other machine is chosen in its folder
   panel, and one on your computer is uploaded from the browser.
 - draw.io and Mermaid are served by Webwriter itself, so the other machine needs no internet for them.
+
+## Security
+
+Webwriter can read and write the files of the user who runs it, so it guards who reaches it and what
+a book can do, since a book may come from someone else:
+
+- **Only this computer, only signed-in windows.** The server listens on `127.0.0.1` alone, refuses
+  requests whose host is not local, takes changes only with Webwriter's own header, and answers only
+  windows signed in with the key (see [Running](#running)).
+- **Links.** Only `http`, `https`, `mailto`, and `#` links are followed, in the app, the PDF, and the
+  web page. Any other link, such as `javascript:`, shows its text and goes nowhere.
+- **Raw HTML** in a book is shown as text, never run, and Mermaid draws in its strict mode.
+- **Pictures stay in the book.** A picture that a symbolic link leads out of the book folder is not
+  shown, not published by `build`, and not put into a Word file. The Word export also leaves out
+  pictures given by a path outside the book or by an address on the web, with a warning, since Pandoc
+  would otherwise read them. Pictures are sent with headers that stop an SVG from running as a page,
+  and the PDF page runs only Webwriter's own scripts.
 
 ## Development
 

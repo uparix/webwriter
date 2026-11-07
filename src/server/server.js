@@ -1,5 +1,6 @@
 // The Webwriter server: the book folder's file operations as a small JSON API, the browser app
 // as static files, and a stream of change notices so the page follows edits made by other programs.
+import crypto from 'node:crypto';
 import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -58,6 +59,42 @@ const TYPES = {
   '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.mp4': 'video/mp4',
 };
 
+// A page that may run no scripts: book pictures, so an SVG opened as a page does nothing.
+const PICTURE_HEADERS = {
+  'Content-Security-Policy': "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox",
+  'X-Content-Type-Options': 'nosniff',
+};
+// The print page runs only Webwriter's own scripts, so a link in the book can run nothing.
+const PAGE_HEADERS = {
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
+  'X-Content-Type-Options': 'nosniff',
+};
+
+/** The page shown to a window that has not signed in. */
+const SIGN_IN_PAGE = `<!doctype html>
+<meta charset="utf-8"><title>Webwriter</title>
+<body style="font: 15px/1.5 -apple-system, system-ui, sans-serif; max-width: 34em; margin: 15vh auto; padding: 0 16px; color: #222">
+<h1 style="font-size: 20px">Open Webwriter from its own address</h1>
+<p>This window has not signed in to Webwriter. Open the address Webwriter printed when it started, the one that ends in <code>?key=…</code>, or start Webwriter again to get a new window.</p>
+</body>
+`;
+
+const sameSecret = (a, b) => {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+};
+
+/** The cookies a request carries, by name. */
+function cookies(req) {
+  const found = {};
+  for (const part of (req.headers.cookie || '').split(';')) {
+    const at = part.indexOf('=');
+    if (at > 0) found[part.slice(0, at).trim()] = part.slice(at + 1).trim();
+  }
+  return found;
+}
+
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -83,8 +120,13 @@ export const DEFAULT_DRAWIO_URL = fs.existsSync(path.join(appRoot, 'vendor', 'dr
 
 export function createServer({
   book = null, prefs = new Preferences(), remember = true, quitWhenClosed = true, log = () => {},
-  drawioURL = process.env.WEBWRITER_DRAWIO_URL || DEFAULT_DRAWIO_URL, watchRetry = 3000,
+  drawioURL = process.env.WEBWRITER_DRAWIO_URL || DEFAULT_DRAWIO_URL, watchRetry = 3000, secret = null,
 } = {}) {
+  // Windows sign in with a cookie holding this secret. Without one kept, it lasts until Webwriter quits.
+  const sessionSecret = secret || prefs.sessionSecret() || crypto.randomBytes(32).toString('hex');
+  // Keys a window opens with, swapped for the cookie. A key in a window's command line is used up at once;
+  // the address printed at start keeps its key for this run.
+  const launchKeys = new Map();
   // A new id for every start. A window that reconnects to a different one reloads, so it never runs old code.
   const bootID = Math.random().toString(36).slice(2);
   const state = {
@@ -422,6 +464,21 @@ export function createServer({
     };
   }
 
+  /** An address that signs a window in. `reusable` keeps it working for this run, as for the printed one. */
+  function launchURL(base, { reusable = false } = {}) {
+    const key = crypto.randomBytes(16).toString('hex');
+    launchKeys.set(key, reusable);
+    return `${base}?key=${key}`;
+  }
+
+  // Cookies are not kept apart by port, so the name carries it: two Webwriters can run at once.
+  const cookieName = (req) => `webwriter-${req.socket.localPort}`;
+
+  /** The `Cookie` header that signs a request in, for tests and tools on `port`. */
+  const sessionCookie = (port) => `webwriter-${port}=${sessionSecret}`;
+
+  const signedIn = (req) => sameSecret(cookies(req)[cookieName(req)] || '', sessionSecret);
+
   function serveFile(res, file, extraHeaders = {}) {
     fs.stat(file, (error, stat) => {
       if (error || !stat.isFile()) {
@@ -506,6 +563,29 @@ export function createServer({
       res.end('Forbidden');
       return;
     }
+    const page = req.method === 'GET' && (pathname === '/' || pathname === '/index.html' || pathname === '/print.html');
+    if (page && url.searchParams.has('key')) {
+      const key = url.searchParams.get('key');
+      if (launchKeys.has(key)) {
+        if (!launchKeys.get(key)) launchKeys.delete(key);
+        res.writeHead(302, {
+          Location: '/',
+          'Set-Cookie': `${cookieName(req)}=${sessionSecret}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000`,
+          'Cache-Control': 'no-store',
+        });
+        res.end();
+        return;
+      }
+    }
+    if (pathname.startsWith('/api/') || pathname.startsWith('/book-file/') || page) {
+      if (!signedIn(req)) {
+        if (page) {
+          res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(SIGN_IN_PAGE);
+        } else sendJSON(res, 401, { error: 'This window has not signed in to Webwriter. Open the address Webwriter printed when it started.' });
+        return;
+      }
+    }
     if (pathname === '/api/events') return events(req, res);
     const handler = api[`${req.method} ${pathname}`];
     if (handler) {
@@ -524,11 +604,13 @@ export function createServer({
       if (!state.root) return sendJSON(res, 404, { error: 'No book is open.' });
       const relative = pathname.slice('/book-file/'.length);
       const file = path.resolve(state.root, relative);
-      if (relative.split('/').includes('..') || !fsu.isInside(state.root, file)) return sendJSON(res, 403, { error: 'Outside the book.' });
-      return serveFile(res, file);
+      // A symbolic link that leads out of the book counts as outside it.
+      if (relative.split('/').includes('..') || !fsu.isInside(state.root, file)
+        || !fsu.isInside(fsu.canonical(state.root), fsu.canonical(file))) return sendJSON(res, 403, { error: 'Outside the book.' });
+      return serveFile(res, file, PICTURE_HEADERS);
     }
     const file = req.method === 'GET' ? staticFile(pathname) : null;
-    if (file) return serveFile(res, file);
+    if (file) return serveFile(res, file, pathname === '/print.html' ? PAGE_HEADERS : {});
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');
   });
@@ -548,5 +630,5 @@ export function createServer({
     }
   }
 
-  return { server, open, state };
+  return { server, open, state, launchURL, sessionCookie };
 }

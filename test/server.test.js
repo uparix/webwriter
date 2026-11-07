@@ -9,26 +9,31 @@ import { Preferences } from '../src/server/prefs.js';
 import { makeHeader, serializeSection } from '../src/server/header.js';
 import { pandocExecutable } from '../src/server/pandoc.js';
 
+/** The cookie that signs a test's requests in, by server. */
+const cookieFor = new Map();
+const signedIn = (server) => ({ headers: { Cookie: cookieFor.get(server) } });
+
 /** A server on a fresh book, on a free port, and a way to call it as the page does. */
 async function serve(options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-server-'));
   const prefs = new Preferences(path.join(root, '..', `${path.basename(root)}-prefs.json`));
-  const { server, state } = createServer({ book: root, prefs, quitWhenClosed: false, ...options });
+  const { server, state, launchURL, sessionCookie } = createServer({ book: root, prefs, quitWhenClosed: false, secret: 'test-secret', ...options });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
+  cookieFor.set(server, sessionCookie(server.address().port));
   const call = async (method, url, body, raw = false) => {
-    const headers = { 'X-Webwriter': '1' };
+    const headers = { 'X-Webwriter': '1', Cookie: cookieFor.get(server) };
     if (!raw && body !== undefined) headers['Content-Type'] = 'application/json';
     const response = await fetch(base + url, { method, headers, body: raw ? body : body === undefined ? undefined : JSON.stringify(body) });
     return { status: response.status, data: await response.json() };
   };
-  return { root, server, state, call };
+  return { root, server, state, call, base, launchURL };
 }
 
 /** The server's change notices, as a window receives them. `next` waits for the first one that `matches`. */
 async function listen(server) {
   const controller = new AbortController();
-  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/events`, { signal: controller.signal });
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/events`, { signal: controller.signal, ...signedIn(server) });
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const events = [];
@@ -80,8 +85,64 @@ test('diagrams are named in images/ and written there only', async () => {
     assert.equal((await call('POST', '/api/diagram/write?path=manuscript/x.svg', svg, true)).status, 400);
     assert.equal((await call('POST', '/api/diagram/write?path=images/x.js', svg, true)).status, 400);
     assert.equal((await call('POST', '/api/diagram/write?path=images/x.svg', 'not svg', true)).status, 400);
-    const forbidden = await fetch(`http://127.0.0.1:${server.address().port}/api/diagram/new`, { method: 'POST' });
+    const forbidden = await fetch(`http://127.0.0.1:${server.address().port}/api/diagram/new`, { method: 'POST', ...signedIn(server) });
     assert.equal(forbidden.status, 403);
+  } finally {
+    server.close();
+  }
+});
+
+test('a window signs in with a key, which a launched window can use once', async () => {
+  const { server, base, call, launchURL } = await serve();
+  const plain = { redirect: 'manual' };
+  try {
+    assert.equal((await fetch(`${base}/api/book`)).status, 401);
+    assert.equal((await fetch(`${base}/api/book`, { headers: { Cookie: 'webwriter-1=test-secret' } })).status, 401);
+    assert.equal((await fetch(`${base}/book-file/images/x.png`)).status, 401);
+    const page = await fetch(`${base}/`);
+    assert.equal(page.status, 401);
+    assert.match(await page.text(), /has not signed in/);
+    assert.equal((await fetch(`${base}/js/main.js`)).status, 200);
+    const once = launchURL(`${base}/`);
+    const first = await fetch(once, plain);
+    assert.equal(first.status, 302);
+    assert.equal(first.headers.get('location'), '/');
+    assert.match(first.headers.get('set-cookie'), new RegExp(`^webwriter-${server.address().port}=test-secret; Path=/; HttpOnly; SameSite=Strict`));
+    assert.equal((await fetch(once, plain)).status, 401);
+    const printed = launchURL(`${base}/`, { reusable: true });
+    assert.equal((await fetch(printed, plain)).status, 302);
+    assert.equal((await fetch(printed, plain)).status, 302);
+    assert.equal((await fetch(`${base}/?key=wrong`, plain)).status, 401);
+    assert.equal((await call('GET', '/api/state')).status, 200);
+  } finally {
+    server.close();
+  }
+});
+
+test('the session secret is kept in a file only its owner can read', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-prefs-'));
+  const prefs = new Preferences(path.join(dir, 'preferences.json'));
+  const secret = prefs.sessionSecret();
+  assert.match(secret, /^[0-9a-f]{64}$/);
+  assert.equal(new Preferences(path.join(dir, 'preferences.json')).sessionSecret(), secret);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(dir, 'session-key')).mode & 0o777, 0o600);
+});
+
+test('book pictures cannot be run as pages, and a symbolic link out of the book is not served', async () => {
+  const { root, server, base } = await serve();
+  try {
+    fs.mkdirSync(path.join(root, 'images'));
+    fs.writeFileSync(path.join(root, 'images', 'in.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ww-outside-')), 'secret.txt');
+    fs.writeFileSync(outside, 'secret');
+    fs.symlinkSync(outside, path.join(root, 'images', 'out.png'));
+    const inside = await fetch(`${base}/book-file/images/in.svg`, signedIn(server));
+    assert.equal(inside.status, 200);
+    assert.match(inside.headers.get('content-security-policy'), /sandbox/);
+    assert.equal(inside.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal((await fetch(`${base}/book-file/images/out.png`, signedIn(server))).status, 403);
+    const print = await fetch(`${base}/print.html`, signedIn(server));
+    assert.match(print.headers.get('content-security-policy'), /script-src 'self'/);
   } finally {
     server.close();
   }
@@ -290,7 +351,7 @@ test('each window gets a hello with the number of windows open', async () => {
   const hello = async () => {
     const controller = new AbortController();
     opened.push(controller);
-    const response = await fetch(`${base}/api/events`, { signal: controller.signal });
+    const response = await fetch(`${base}/api/events`, { signal: controller.signal, ...signedIn(server) });
     const reader = response.body.getReader();
     const { value } = await reader.read();
     return JSON.parse(new TextDecoder().decode(value).replace(/^data: /, ''));
@@ -354,6 +415,29 @@ test('Export Word aligns ::: left, center, and right divs, a captioned picture i
     for (const [id, value] of [['Centered', 'center'], ['RightAligned', 'right'], ['LeftAligned', 'left']]) {
       assert.match(styles, new RegExp(`w:styleId="${id}"(?:(?!</w:style>)[^])*<w:jc w:val="${value}"/></w:pPr></w:style>`), id);
     }
+  } finally {
+    server.close();
+  }
+});
+
+test('Export Word leaves out pictures from outside the book, with a warning', { skip: wordSkip }, async () => {
+  const { root, server, call } = await serve();
+  try {
+    writeSmallBook(root);
+    const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ww-outside-')), 'secret.png');
+    fs.writeFileSync(outside, 'TOP-SECRET');
+    fs.mkdirSync(path.join(root, 'images'), { recursive: true });
+    fs.symlinkSync(outside, path.join(root, 'images', 'linked.png'));
+    const section = fs.readdirSync(path.join(root, 'manuscript'), { recursive: true })
+      .map((name) => path.join(root, 'manuscript', name)).filter((file) => file.endsWith('.md')).find((file) => fs.readFileSync(file, 'utf8').includes('Alpha text.'));
+    fs.writeFileSync(section, fs.readFileSync(section, 'utf8').replace('Alpha text.', `Alpha text.\n\n![](${outside})\n\n![](../${path.basename(path.dirname(outside))}/secret.png)\n\n![](images/linked.png)\n\n![](https://example.com/x.png)\n`));
+    const file = path.join(root, 'book.docx');
+    const { data } = await call('POST', '/api/export/word-book', { file });
+    assert.equal(data.warnings.length, 4);
+    assert.ok(data.warnings.every((w) => /is outside the book folder and is left out of the Word file/.test(w)));
+    const media = execFileSync('unzip', ['-l', file], { encoding: 'utf8' });
+    assert.doesNotMatch(media, /word\/media\//);
+    assert.match(documentXML(file), /\[picture: https:\/\/example\.com\/x\.png\]/);
   } finally {
     server.close();
   }

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { wordFiles, exportBook, timestamped } from '../../shared/export.js';
 import { resolveTagColors } from '../../shared/tags.js';
 import { replaceMermaid } from '../../shared/mermaid.js';
+import { canonical, isInside } from './fsutil.js';
 
 /** Draws tags as shaded text in Word. */
 const TAG_FILTER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tags.lua');
@@ -42,27 +43,73 @@ export function pandocExecutable(env = process.env) {
   return null;
 }
 
-/** Run Pandoc with `args`, writing `input` to it. Pandoc runs in `cwd`, so picture paths resolve. */
+/** Run Pandoc with `args`, writing `input` to it, and give what it prints. Pandoc runs in `cwd`. */
 function runPandoc(pandoc, args, cwd, input = '') {
   return new Promise((resolve, reject) => {
-    const child = spawn(pandoc, args, { cwd, stdio: ['pipe', 'ignore', 'pipe'] });
+    const child = spawn(pandoc, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+    const output = [];
     let errors = '';
+    child.stdout.on('data', (chunk) => output.push(chunk));
     child.stderr.on('data', (chunk) => { errors += chunk; });
     child.on('error', reject);
     child.on('close', (code) => {
-      if (code === 0) resolve();
+      if (code === 0) resolve(Buffer.concat(output).toString('utf8'));
       else reject(new Error(errors.trim() || 'Pandoc failed.'));
     });
     child.stdin.end(input);
   });
 }
 
-/** Convert Markdown to a Word file. Pandoc runs in the book folder, so picture paths resolve. */
-export async function docx(markdown, output, resourceDirectory) {
+/**
+ * Whether Pandoc may put the picture at `source` into a Word file: a file inside the book, following
+ * symbolic links, or inside one of `extra` folders, or a `data:` picture. Pandoc would otherwise read any
+ * path or address, so a book could carry a file from elsewhere on the computer out in its Word file.
+ */
+export function pictureAllowed(source, root, extra = []) {
+  if (/^data:image\//i.test(source)) return true;
+  if (!path.isAbsolute(source) && /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(source)) return false;
+  const spellings = new Set([source]);
+  try {
+    spellings.add(decodeURIComponent(source));
+  } catch {
+    // Only the spelling as written.
+  }
+  return [...spellings].every((spelling) => {
+    const file = path.resolve(root, spelling);
+    return [root, ...extra].some((dir) => isInside(path.resolve(dir), file) && isInside(canonical(dir), canonical(file)));
+  });
+}
+
+/** Swap each picture Pandoc may not use, in Pandoc's JSON, for a note in its place. Gives the sources swapped. */
+function leaveOutPictures(node, allowed, refused) {
+  if (Array.isArray(node)) return node.map((child) => leaveOutPictures(child, allowed, refused));
+  if (!node || typeof node !== 'object') return node;
+  if (node.t === 'Image') {
+    const source = node.c[2][0];
+    if (!allowed(source)) {
+      refused.add(source);
+      return { t: 'Emph', c: [{ t: 'Str', c: `[picture: ${source}]` }] };
+    }
+  }
+  return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, leaveOutPictures(value, allowed, refused)]));
+}
+
+/**
+ * Convert Markdown to a Word file. Pandoc runs in the book folder, so picture paths resolve. Pictures
+ * outside the book, and outside `extra` folders, are left out, each with a note in `warnings`.
+ */
+export async function docx(markdown, output, resourceDirectory, { extra = [], warnings = [] } = {}) {
   const pandoc = pandocExecutable();
   if (!pandoc) throw new Error(NOT_INSTALLED);
+  const parsed = JSON.parse(await runPandoc(pandoc, ['--from=markdown', '--to=json'], resourceDirectory, markdown));
+  const refused = new Set();
+  const checked = leaveOutPictures(parsed, (source) => pictureAllowed(source, resourceDirectory, extra), refused);
+  for (const source of refused) {
+    const warning = `The picture ${source} is outside the book folder and is left out of the Word file.`;
+    if (!warnings.includes(warning)) warnings.push(warning);
+  }
   const filters = [TAG_FILTER, BREAK_FILTER, ALIGN_FILTER].map((filter) => `--lua-filter=${filter}`);
-  await runPandoc(pandoc, ['--from=markdown', '--to=docx', ...filters, '-o', output], resourceDirectory, markdown);
+  await runPandoc(pandoc, ['--from=json', '--to=docx', ...filters, '-o', output], resourceDirectory, JSON.stringify(checked));
   if (ALIGN_DIV.test(markdown)) await runPandoc(pandoc, ['lua', ALIGN_STYLES, path.resolve(resourceDirectory, output)], resourceDirectory);
 }
 
@@ -70,9 +117,10 @@ export async function docx(markdown, output, resourceDirectory) {
 const PIXELS_PER_INCH = 96;
 
 /**
- * Run `write(prepare)` with the page's PNGs of the mermaid diagrams in a temporary folder. `prepare`
+ * Run `write(prepare, extra)` with the page's PNGs of the mermaid diagrams in a temporary folder. `prepare`
  * makes a piece of exported Markdown ready for Pandoc: each mermaid fence becomes its picture, at the
- * width the fence asks for or else its own size, and each tag gets its color. A fence the page sent no picture for stays a code block, with a warning.
+ * width the fence asks for or else its own size, and each tag gets its color. `extra` holds that folder,
+ * so the export lets its pictures in. A fence the page sent no picture for stays a code block, with a warning.
  */
 async function withPictures(pictures, tags, warnings, write) {
   const bySource = new Map(pictures.map((p) => [p.source, p]));
@@ -93,7 +141,8 @@ async function withPictures(pictures, tags, warnings, write) {
     return `![](<${written.get(source)}>){width=${width || `${(picture.width / PIXELS_PER_INCH).toFixed(2)}in`}}`;
   };
   try {
-    return await write((markdown) => resolveTagColors(replaceMermaid(markdown, pictureFor), tags));
+    // The diagrams' folder is Webwriter's own, so its pictures may go into the Word file.
+    return await write((markdown) => resolveTagColors(replaceMermaid(markdown, pictureFor), tags), dir ? [dir] : []);
   } finally {
     if (dir) fs.rmSync(dir, { recursive: true, force: true });
     if (missing) warnings.push(`${missing} Mermaid diagram${missing === 1 ? '' : 's'} could not be drawn and ${missing === 1 ? 'is' : 'are'} shown as code.`);
@@ -108,10 +157,10 @@ async function withPictures(pictures, tags, warnings, write) {
 export async function writeChapters(book, directory, date = new Date(), tags = {}, pictures = []) {
   const exported = wordFiles(book.nodes);
   const names = [];
-  await withPictures(pictures, tags, exported.warnings, async (prepare) => {
+  await withPictures(pictures, tags, exported.warnings, async (prepare, extra) => {
     for (const file of exported.files) {
       const name = date ? timestamped(file.name, date) : file.name;
-      await docx(prepare(file.markdown), path.join(directory, name), book.root);
+      await docx(prepare(file.markdown), path.join(directory, name), book.root, { extra, warnings: exported.warnings });
       names.push(name);
     }
   });
@@ -121,6 +170,6 @@ export async function writeChapters(book, directory, date = new Date(), tags = {
 /** The whole manuscript as one Word file at `file`. */
 export async function writeBook(book, file, tags = {}, pictures = []) {
   const exported = exportBook(book.nodes);
-  await withPictures(pictures, tags, exported.warnings, (prepare) => docx(prepare(exported.markdown), file, book.root));
+  await withPictures(pictures, tags, exported.warnings, (prepare, extra) => docx(prepare(exported.markdown), file, book.root, { extra, warnings: exported.warnings }));
   return { file, warnings: exported.warnings };
 }

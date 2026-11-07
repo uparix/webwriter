@@ -58,7 +58,10 @@ export async function buildSite(root, out) {
     if (!seen.has(relative)) {
       seen.add(relative);
       const source = path.join(root, relative);
-      if (fsu.exists(source)) {
+      if (fsu.exists(source) && !fsu.isInside(fsu.canonical(root), fsu.canonical(source))) {
+        // A symbolic link out of the book would publish whatever it points to.
+        warnings.push(`The picture ${relative} leads outside the book folder and is left out.`);
+      } else if (fsu.exists(source)) {
         fs.mkdirSync(path.dirname(path.join(out, relative)), { recursive: true });
         fs.copyFileSync(source, path.join(out, relative));
         pictures.push(relative);

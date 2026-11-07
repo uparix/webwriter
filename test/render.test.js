@@ -1,7 +1,7 @@
 // The browser renderer, run in Node through test/browser-paths.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Renderer, renderSection, bookPath, widthPercent } from '../public/js/render.js';
+import { Renderer, renderSection, bookPath, widthPercent, safeHref } from '../public/js/render.js';
 import { Mapped, shiftHeadings, prepareNotes } from '../public/js/mapped.js';
 
 const render = (body) => new Renderer({ scope: 's' }).render(Mapped.identity(body));
@@ -71,4 +71,15 @@ test('a fenced div such as ::: center wraps its blocks, nests, and ignores colon
   assert.match(plain, /<code>:::\n<\/code><\/pre><div class="fenced-div div-center div-note" data-line="7"><p data-line="8">inner<\/p><\/div><\/div><p data-line="12">After/);
   assert.match(render('::: right\nx\n:::'), /^<div class="fenced-div div-right" data-line="0">/);
   assert.match(render('Text\n::: center\nopen').replace(/<\/?span[^>]*>/g, ''), /<p data-line="0">Text<\/p><div class="fenced-div div-center" data-line="1"><p data-line="2">open<\/p><\/div>/);
+});
+
+test('only web, mail, and note links can be followed', () => {
+  for (const ok of ['https://pandoc.org', 'http://x.org/a?b', 'mailto:a@b.org', '#note', 'HTTPS://X.ORG']) assert.equal(safeHref(ok), ok);
+  for (const bad of ['javascript:alert(1)', ' JavaScript:alert(1)', 'data:text/html,x', 'vbscript:x', '/book-file/images/x.svg', 'images/x.svg', '//evil.org', 'file:///etc/passwd']) {
+    assert.equal(safeHref(bad), null, bad);
+  }
+  const html = render('[a](javascript:alert(1)) <javascript:alert(2)> [b](https://x.org)');
+  assert.doesNotMatch(html, /href="javascript/i);
+  assert.match(html, /<a class="external blocked" title="Not followed: javascript:alert\(1\)">/);
+  assert.match(html, /<a href="https:\/\/x\.org" class="external">/);
 });

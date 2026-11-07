@@ -84,7 +84,7 @@ if (folder && !fs.existsSync(folder)) {
   process.exit(1);
 }
 
-const { server, state } = createServer({
+const { server, state, launchURL } = createServer({
   book: folder,
   quitWhenClosed: !keepRunning && openBrowser,
   ...(drawioURL ? { drawioURL } : {}),
@@ -102,10 +102,12 @@ function listen(attempt = 0) {
     }
   });
   server.listen(port, '127.0.0.1', () => {
-    const url = `http://127.0.0.1:${port}/`;
-    console.log(`Webwriter is running at ${url}`);
+    const base = `http://127.0.0.1:${port}/`;
+    // The address signs a window in. Windows already signed in reconnect without it.
+    console.log(`Webwriter is running at ${launchURL(base, { reusable: true })}`);
     console.log('Press Ctrl+C to quit.');
-    if (openBrowser) openUnlessReconnected(url);
+    // A window's command line can be read by other users, so its key works once.
+    if (openBrowser) openUnlessReconnected(() => launchURL(base));
   });
 }
 
@@ -113,10 +115,10 @@ function listen(attempt = 0) {
  * Windows left open by an earlier run reconnect on their own within a few seconds. A new window then
  * would be one more, and each holds a connection: past the browser's six per host, requests stall.
  */
-function openUnlessReconnected(url) {
+function openUnlessReconnected(makeURL) {
   setTimeout(() => {
     if (state.clients.size > 0) console.log('A Webwriter window reconnected. No new window was opened.');
-    else openWindow(url);
+    else openWindow(makeURL());
   }, RECONNECT_WAIT);
 }
 

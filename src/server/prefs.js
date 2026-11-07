@@ -1,5 +1,6 @@
 // The writer's preferences, per user and not in the book: the last book, the recent books,
 // the review author name, and the color for new comments.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -45,6 +46,32 @@ export class Preferences {
       writeText(this.file, JSON.stringify(this.values, null, 2) + '\n');
     } catch {
       // Preferences are a convenience. A read-only home folder must not stop the writer.
+    }
+  }
+
+  /**
+   * The secret a window signs in with, kept beside the preferences in a file only this user can read,
+   * so windows stay signed in when Webwriter starts again. Made on first use. Null when it cannot be kept.
+   */
+  sessionSecret() {
+    const file = path.join(path.dirname(this.file), 'session-key');
+    try {
+      const kept = fs.readFileSync(file, 'utf8').trim();
+      if (/^[0-9a-f]{64}$/.test(kept)) {
+        fs.chmodSync(file, 0o600);
+        return kept;
+      }
+    } catch {
+      // Made below.
+    }
+    const secret = crypto.randomBytes(32).toString('hex');
+    try {
+      makeDirectory(path.dirname(file));
+      fs.rmSync(file, { force: true });
+      fs.writeFileSync(file, `${secret}\n`, { mode: 0o600, flag: 'wx' });
+      return secret;
+    } catch {
+      return null;
     }
   }
 

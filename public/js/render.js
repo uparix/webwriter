@@ -61,6 +61,27 @@ export function emit(m) {
   return html;
 }
 
+// MARK: Links
+
+/**
+ * A link's target as an href, or null when it may not be followed: only web, mail, and note links
+ * are. A `javascript:` link, or a relative one that could open a file of the book as a page, would
+ * run in the PDF window or on the published page.
+ */
+export function safeHref(destination) {
+  const target = String(destination).trim();
+  if (/^(https?:\/\/|mailto:)/i.test(target) || /^#[^\s]*$/.test(target)) return target;
+  return null;
+}
+
+/** A link as HTML. One that may not be followed keeps its text and goes nowhere. */
+function linkHTML(destination, inner) {
+  const href = safeHref(destination);
+  return href == null
+    ? `<a class="external blocked" title="${esc(`Not followed: ${destination}`)}">${inner}</a>`
+    : `<a href="${esc(href)}" class="external">${inner}</a>`;
+}
+
 // MARK: Pictures
 
 /** A book-relative picture path, or null for a URL or a path that leaves the book. */
@@ -315,7 +336,7 @@ class Inline {
         if (auto) {
           flush(i);
           const href = auto[1].includes(':') ? auto[1] : `mailto:${auto[1]}`;
-          html(i + auto[0].length, `<a href="${esc(href)}" class="external">${emit(m.slice(i + 1, i + auto[0].length - 1))}</a>`);
+          html(i + auto[0].length, linkHTML(href, emit(m.slice(i + 1, i + auto[0].length - 1))));
           i += auto[0].length;
           continue;
         }
@@ -338,7 +359,7 @@ class Inline {
             html(tail.end, picture(tail.destination, tail.attributes));
           } else {
             const inner = new Inline(this.ctx).render(label);
-            html(tail.end, `<a href="${esc(tail.destination)}" class="external">${inner}</a>`);
+            html(tail.end, linkHTML(tail.destination, inner));
           }
           i = tail.end;
           continue;

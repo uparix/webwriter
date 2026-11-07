@@ -46,3 +46,18 @@ test('a book without diagrams gets no Mermaid, and a missing picture is a warnin
 test('the output folder cannot be the book folder', async () => {
   await assert.rejects(buildSite(example, example), /must not be the book folder/);
 });
+
+test('a picture that is a symbolic link out of the book is not published', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-site-link-'));
+  fs.mkdirSync(path.join(root, 'manuscript'));
+  fs.mkdirSync(path.join(root, 'images'));
+  const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ww-outside-')), 'secret.txt');
+  fs.writeFileSync(outside, 'TOP-SECRET');
+  fs.symlinkSync(outside, path.join(root, 'images', 'photo.png'));
+  fs.writeFileSync(path.join(root, 'manuscript', '010-one.md'), '---\nid: one\ntitle: One\n---\n![](images/photo.png)\n');
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-site-out-'));
+  const result = await buildSite(root, out);
+  assert.deepEqual(result.pictures, []);
+  assert.ok(result.warnings.includes('The picture images/photo.png leads outside the book folder and is left out.'));
+  assert.ok(!fs.existsSync(path.join(out, 'images', 'photo.png')));
+});

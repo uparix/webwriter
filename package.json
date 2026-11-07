@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node bin/webwriter.js",
     "check": "node bin/webwriter.js check",
-    "test": "node --import ./test/browser-paths.mjs --test test/",
+    "test": "node --import ./test/browser-paths.mjs --test \"test/*.test.js\"",
     "fetch-drawio": "node scripts/fetch-drawio.mjs",
     "postinstall": "node scripts/fetch-drawio.mjs --optional"
   },

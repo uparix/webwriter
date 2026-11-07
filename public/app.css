@@ -234,6 +234,8 @@ body.resizing iframe, body.resizing .CodeMirror { pointer-events: none; }
 
 /* Rendered text: the preview and the reading view */
 .paper-scroll { flex: 1; overflow: auto; position: relative; background: var(--paper); }
+/* The app's own view is wider than the printed page; the PDF and the web page set their own widths. */
+.paper-scroll .paper { max-width: 940px; }
 .paper {
   max-width: 700px; margin: 0 auto; padding: 32px 52px 40vh 40px; color: var(--ink);
   font: 15px/1.5 var(--serif); outline: none; caret-color: var(--ink);

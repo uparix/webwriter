@@ -3,6 +3,7 @@ import { fenceStep, codeSpans, insideSpans } from './fences.js';
 import {
   clampHeadingLevel, divisions, divisionLabel, isChapter, isFront, isTrash, startsNewPage, find,
 } from './tree.js';
+import { withIndexes } from './bookindex.js';
 
 export const CHAPTER_NUMBER_CLASS = 'chapter-number';
 export const PAGE_BREAK_CLASS = 'page-break';
@@ -124,7 +125,7 @@ function markdownOf(node, warnings, numbered, nested) {
 /** Manuscript Markdown split where notes are printed: front matter, each chapter, anything else alone. */
 export function noteGroups(nodes) {
   const warnings = [];
-  const pieces = walkPieces(nodes.filter((n) => !isTrash(n)), [], warnings, divisions(nodes), false, 'enter');
+  const pieces = walkPieces(withIndexes(nodes.filter((n) => !isTrash(n))), [], warnings, divisions(nodes), false, 'enter');
   const groups = [];
   for (const piece of pieces) {
     const last = groups[groups.length - 1];
@@ -143,7 +144,7 @@ export function exportBook(nodes) {
 
 /** One chapter and the sections inside it, numbered as in the whole book. A nested chapter is left out. */
 export function exportChapter(nodes, id) {
-  const found = find(nodes.filter((n) => !isTrash(n)), id);
+  const found = find(withIndexes(nodes.filter((n) => !isTrash(n))), id);
   if (!found || !isChapter(found.node)) return null;
   const warnings = [];
   const numbered = divisions(nodes);
@@ -171,7 +172,7 @@ export function wordFiles(nodes) {
       if (!frontRoot) collect(node.children, [...ancestors, node]);
     }
   };
-  collect(nodes, []);
+  collect(withIndexes(nodes), []);
   return { files, warnings };
 }
 

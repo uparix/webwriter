@@ -40,3 +40,17 @@ test('diagrams are named in images/ and written there only', async () => {
     server.close();
   }
 });
+
+test('a new index goes first in the book and holds the index fence', async () => {
+  const { server, call } = await serve();
+  try {
+    await call('POST', '/api/create', { kind: 'section', title: 'Opening' });
+    const { id } = (await call('POST', '/api/create', { kind: 'index', title: 'Index', placement: { type: 'top', id: null } })).data;
+    const { nodes } = (await call('GET', '/api/book')).data;
+    const first = nodes.find((n) => n.header.id !== 'trash');
+    assert.equal(first.header.id, id);
+    assert.equal(first.body, '```index\n```\n');
+  } finally {
+    server.close();
+  }
+});

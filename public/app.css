@@ -252,6 +252,12 @@ body.resizing iframe, body.resizing .CodeMirror { pointer-events: none; }
 .paper .division { text-align: center; font-weight: 700; margin: 1em 0 0.3em; }
 .paper .page-break-mark { text-align: center; font: 11px var(--sans); color: var(--ink-mark); margin: 2em 0; user-select: none; }
 .paper .page-break-mark::before, .paper .page-break-mark::after { content: ''; display: inline-block; width: 30%; border-top: 1px solid #e0e0e3; vertical-align: middle; margin: 0 10px; }
+.paper .book-index { margin: 0 0 0.8em; user-select: none; }
+.paper .book-index-entry { margin: 0 0 0.25em; padding-left: calc(var(--depth) * 1.5em); }
+.paper .book-index-number { display: inline-block; min-width: 3.5em; color: var(--ink-secondary); font-variant-numeric: tabular-nums; }
+.paper .book-index-entry a { color: inherit; text-decoration: none; }
+.paper .book-index-entry a:hover { text-decoration: underline; }
+.paper .book-index-empty { color: var(--ink-secondary); font-style: italic; }
 .paper blockquote { margin: 0 0 0.8em; padding-left: 1em; border-left: 3px solid #d9d9de; color: var(--ink-secondary); }
 .paper ul, .paper ol { margin: 0 0 0.8em; padding-left: 1.6em; }
 .paper ul.tight > li > p, .paper ol.tight > li > p { margin: 0; }

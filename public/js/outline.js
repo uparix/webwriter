@@ -146,6 +146,7 @@ export class Outline {
       items = [
         { label: 'New Text', action: () => model.requestCreation('section', { type: 'inParent', id: null }) },
         { label: 'New Folder', action: () => model.requestCreation('group', { type: 'inParent', id: null }) },
+        { label: 'New Index', action: () => model.requestCreation('index', { type: 'top', id: null }) },
       ];
     } else if (isTrash(node)) {
       items = [{ label: 'Empty Trash…', enabled: !model.trashIsEmpty, action: () => model.emptyTrash() }];

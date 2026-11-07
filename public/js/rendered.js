@@ -365,7 +365,12 @@ export class RenderedView {
     const note = event.target.closest('a[data-note]');
     const back = event.target.closest('a[data-ref]');
     const external = event.target.closest('a.external');
-    if (note) {
+    const piece = event.target.closest('a[data-open-node]');
+    if (piece) {
+      // An index entry opens its piece.
+      event.preventDefault();
+      this.model.selectRow({ kind: 'node', id: piece.dataset.openNode });
+    } else if (note) {
       event.preventDefault();
       this.reveal(`note:${note.dataset.note}`);
       this.model.revealNote(`note:${note.dataset.note}`);

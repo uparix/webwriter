@@ -5,7 +5,7 @@ import { EditorController } from './editor.js';
 import { RenderedView } from './rendered.js';
 import { Outline } from './outline.js';
 import { CommentsPanel, MarkerLayer } from './comments-ui.js';
-import { renderBook, renderGroup, renderSection, setTagDefinitions, setPictureVersion, bookPath } from './render.js';
+import { renderBook, renderGroup, renderSection, setTagDefinitions, setPictureVersion, setBookNodes, bookPath } from './render.js';
 import { editDiagram, isDiagramPath } from './diagram.js';
 import {
   h, beep, sheet, alertSheet, confirmSheet, chooseSheet, titleSheet, commentSheet, browseSheet, paletteSheet,
@@ -191,6 +191,7 @@ const MENUS = [
   { label: 'File', items: [
     { label: 'New Text', shortcut: '⌥⌘N', keys: ['mod+alt+KeyN', 'mod+KeyN'], enabled: has.book, action: () => model.requestCreation('section') },
     { label: 'New Folder', shortcut: '⌥⇧⌘N', keys: ['mod+alt+shift+KeyN', 'mod+shift+KeyN'], enabled: has.book, action: () => model.requestCreation('group') },
+    { label: 'New Index', enabled: has.book, action: () => model.requestCreation('index', { type: 'top', id: null }) },
     '-',
     { label: 'Open Book…', shortcut: '⌘O', keys: ['mod+KeyO'], action: () => openBookPanel() },
     { label: 'Open Recent', submenu: () => recentItems() },
@@ -316,6 +317,7 @@ function buildToolbar() {
     showMenu([
       { label: 'New Text', action: () => model.requestCreation('section') },
       { label: 'New Folder', action: () => model.requestCreation('group') },
+      { label: 'New Index', action: () => model.requestCreation('index', { type: 'top', id: null }) },
       '-',
       { label: 'Add Comment…', enabled: model.reviewSelection != null, action: () => model.requestComment() },
     ], rect.left, rect.bottom + 4);
@@ -657,6 +659,7 @@ function renderDetail() {
     return;
   }
   const numbers = divisions(model.book.nodes);
+  setBookNodes(model.book.nodes);
   const bodyOf = (node) => model.liveBody(node);
   let html = '';
   if (mode.rendered === 'book') {

@@ -6,6 +6,7 @@ import { clampHeadingLevel, isFront, isGroup, startsNewPage, divisionLabel } fro
 import { Mapped, shiftHeadings, prepareNotes, noteNumber, NOTE_OPEN, NOTE_CLOSE } from './mapped.js';
 import { highlightCode } from './code.js';
 import { tagAttributes, tagColor } from '/shared/tags.js';
+import { INDEX_INFO, indexEntries } from '/shared/bookindex.js';
 
 /** The book's tag colors from tags.json, by tag name. */
 let tagDefinitions = {};
@@ -15,6 +16,13 @@ export function setTagDefinitions(definitions) {
 }
 
 export const getTagDefinitions = () => tagDefinitions;
+
+/** The book's tree, for the pieces an index lists. */
+let bookNodes = [];
+
+export function setBookNodes(nodes) {
+  bookNodes = nodes || [];
+}
 
 /** Bumped when a picture changes on disk, so the browser loads it again instead of its cached copy. */
 let pictureVersion = 0;
@@ -534,6 +542,11 @@ export class Renderer {
           k += 1;
         }
         const language = fence.info.trim().split(/\s+/)[0] || '';
+        if (language === INDEX_INFO && this.ctx.indexID != null) {
+          html += this.indexBlock(indexEntries(bookNodes, this.ctx.indexID), lineAttr(i));
+          i = closed ? k + 1 : k;
+          continue;
+        }
         html += this.codeBlock(content, language, lineAttr(i + 1 < entries.length ? i + 1 : i));
         i = closed ? k + 1 : k;
         continue;
@@ -740,6 +753,15 @@ export class Renderer {
     return `<pre class="code"${lineAttr} data-code="1"><code>${highlightCode(content, language, emit)}</code></pre>`;
   }
 
+  /** An index: each following piece, numbered and indented by depth. A click opens the piece. */
+  indexBlock(entries, lineAttr) {
+    if (!entries.length) return `<p class="book-index-empty"${lineAttr}>No pages follow this index.</p>`;
+    const rows = entries.map((e) => `<p class="book-index-entry" style="--depth:${e.depth}">`
+      + `<span class="book-index-number">${esc(e.number)}</span>`
+      + `<a href="#" data-open-node="${esc(e.id)}">${esc(e.title)}</a></p>`);
+    return `<div class="book-index"${lineAttr} contenteditable="false">${rows.join('')}</div>`;
+  }
+
   htmlBlock(lines, lineAttr) {
     const raw = lines.map((l) => l.text).join('\n').trim();
     if (/^<div class="page-break"><\/div>$/.test(raw)) return `<div class="page-break-mark"${lineAttr}>— Page break —</div>`;
@@ -795,7 +817,7 @@ export function renderSection(node, ancestors, division, bodyOf) {
   if (front) html += '<p class="kicker">Front matter</p>';
   if (division) html += `<p class="division">${esc(divisionLabel(division))}</p>`;
   html += `<h${level} class="h${level} node-title">${esc(node.header.title || 'Untitled')}</h${level}>`;
-  html += new Renderer({ scope: node.header.id }).render(shiftHeadings(bodyOf(node), depth));
+  html += new Renderer({ scope: node.header.id, indexID: node.header.id }).render(shiftHeadings(bodyOf(node), depth));
   return html + '</section>';
 }
 

@@ -17,7 +17,8 @@ import { writeChapters } from './pandoc.js';
 import { Preferences } from './prefs.js';
 import { FolderWatcher, relevantChange } from './watcher.js';
 import { exportBook } from '../../shared/export.js';
-import { walk } from '../../shared/tree.js';
+import { walk, isTrash } from '../../shared/tree.js';
+import { INDEX_BODY } from '../../shared/bookindex.js';
 import { TAGS_FILE, decodeTags, encodeTags } from '../../shared/tags.js';
 
 /** The book's tag colors. A book without tags.json has none; one that cannot be read throws. */
@@ -171,6 +172,13 @@ export function createServer({
       const kind = body.kind === 'group' ? 'group' : 'section';
       const placement = body.placement || { type: 'inParent', id: null };
       let book = loadBook(root);
+      if (body.kind === 'index') {
+        // An index goes first in the book, so that it lists every piece. It can be dragged elsewhere.
+        const first = book.nodes.find((n) => !isTrash(n));
+        const id = createNode(book, null, 'section', title, INDEX_BODY);
+        if (first) moveNode(loadBook(root), id, first.header.id, 'before');
+        return { id };
+      }
       if (placement.type === 'below') {
         const found = walkFind(book, placement.id);
         const parent = found?.ancestors[found.ancestors.length - 1]?.header.id ?? null;

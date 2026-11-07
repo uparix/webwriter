@@ -144,11 +144,14 @@ export function chooseSheet({ title, message, buttons: labels }) {
   ]);
 }
 
-/** New Text / New Folder / New Diagram: ask for a title. Create is disabled while the title is blank. */
-export function titleSheet(kind, heading = kind === 'group' ? 'New Folder' : 'New Text') {
+const TITLE_HEADINGS = { group: 'New Folder', index: 'New Index', section: 'New Text' };
+
+/** New Text / New Folder / New Index / New Diagram: ask for a title. Create is disabled while the title is blank. */
+export function titleSheet(kind, heading = TITLE_HEADINGS[kind] ?? 'New Text') {
   return sheet((close) => {
-    const input = h('input', { type: 'text', placeholder: 'Title', autofocus: true, 'aria-label': 'Title' });
-    const create = h('button', { class: 'primary', disabled: true, onclick: () => close(input.value) }, 'Create');
+    const value = kind === 'index' ? 'Index' : '';
+    const input = h('input', { type: 'text', placeholder: 'Title', value, autofocus: true, 'aria-label': 'Title' });
+    const create = h('button', { class: 'primary', disabled: value === '', onclick: () => close(input.value) }, 'Create');
     input.addEventListener('input', () => { create.disabled = input.value.trim() === ''; });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && input.value.trim()) close(input.value);

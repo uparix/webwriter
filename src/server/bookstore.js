@@ -174,14 +174,14 @@ export function fileMatches(file, header, body) {
 // MARK: Creating
 
 /** Create a node at the end of `parentID` (or of the manuscript) and return its id. */
-export function createNode(book, parentID, kind, title) {
+export function createNode(book, parentID, kind, title, body = '') {
   const parent = parentID ? find(book.nodes, parentID) : null;
   const dir = parent ? path.join(parent.node.dir, parent.node.entryName) : path.join(book.root, 'manuscript');
   const prefixes = fsu.readDir(dir).map((e) => /^(\d+)-/.exec(e.name)).filter(Boolean).map((m) => m[1]);
   const id = uniqueID(title, ids(book.nodes));
   const prefix = nextPrefix(prefixes);
   const header = makeHeader({ id, title, unit: kind === 'group' ? 'section' : 'text' });
-  const text = serializeSection(header, '');
+  const text = serializeSection(header, body);
   if (kind === 'group') {
     const groupDir = path.join(dir, `${prefix}-${id}`);
     fsu.makeDirectory(groupDir);

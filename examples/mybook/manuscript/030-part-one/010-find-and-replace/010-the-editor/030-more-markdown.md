@@ -14,6 +14,11 @@ Some Markdown has no command in the **Markup** menu, but the preview, the readin
 
 `{-}` after a heading tells Pandoc not to number it, as front matter does. The braces never show.
 
+An underlined heading
+---------------------
+
+A line of `=` or `-` under a line of text makes it a heading, like `#` and `##`.
+
 - A list nests when an item is indented
   - by two spaces
     - or more,

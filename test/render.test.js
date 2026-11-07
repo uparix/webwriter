@@ -53,3 +53,11 @@ test('pictures and export HTML blocks', () => {
   assert.match(render('<div class="page-break"></div>'), /page-break-mark/);
   assert.match(render('<p class="chapter-number">Chapter 2</p>'), /<p class="division"[^>]*>Chapter 2<\/p>/);
 });
+
+test('underlined headings show at their depth, without Pandoc attributes', () => {
+  const node = { kind: 'section', header: { id: 'p', title: 'Piece', role: 'body' }, body: 'Sub {-}\n===\n\nLower\n---\n', children: [] };
+  const section = renderSection(node, [{ header: { id: 'g', role: 'body' } }], null, (n) => n.body);
+  assert.match(section, /<h3 class="h3"[^>]*><span data-o="0">Sub<\/span><\/h3>/);
+  assert.match(section, /<h4 class="h4"[^>]*><span data-o="\d+">Lower<\/span><\/h4>/);
+  assert.match(render('Plain\n==='), /<h1 class="h1"/);
+});

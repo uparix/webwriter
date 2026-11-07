@@ -53,18 +53,50 @@ function shiftHeading(line, options, warnings) {
   return '#'.repeat(clamped.level) + match[2] + text;
 }
 
-/** Shift body headings by the depth and, when asked, prefix footnote labels. Fenced code is copied through. */
+const BLANK = /^[ \t]*$/;
+const UNDERLINE = /^ {0,3}(=+|-+)[ \t]*$/;
+const OTHER_BLOCK = /^ {0,3}(#{1,6}([ \t]|$)|>|<[A-Za-z!/]|([-*_])([ \t]*\3){2,}[ \t]*$)/;
+const LIST_ITEM = /^ {0,3}([-*+]|\d{1,9}[.)])([ \t]|$)/;
+
+/** Whether a line can start a paragraph, and so an underlined heading, after a blank line. */
+const startsParagraph = (line) => !OTHER_BLOCK.test(line) && !LIST_ITEM.test(line) && !/^( {4}|\t)/.test(line);
+
+/** Whether a line ends the paragraph before it instead of joining it, as CommonMark has it. */
+function interruptsParagraph(line) {
+  if (OTHER_BLOCK.test(line)) return true;
+  const item = LIST_ITEM.exec(line);
+  return Boolean(item && !BLANK.test(line.slice(item[0].length)) && (/^[-*+]$/.test(item[1]) || /^1[.)]$/.test(item[1])));
+}
+
+/**
+ * Shift body headings by the depth and, when asked, prefix footnote labels. Fenced code is copied
+ * through. An underlined heading (a paragraph over a line of `=` or `-`) becomes a `#` heading first.
+ */
 export function transformBody(body, options) {
   const warnings = [];
   const out = [];
   let fence = null;
+  // The paragraph being read: where its lines start in `out`, and the lines as written.
+  let paragraph = null;
   for (const line of body.split('\n')) {
     const stepped = fenceStep(line, fence);
     fence = stepped.fence;
     if (stepped.fenced) {
+      paragraph = null;
       out.push(line);
       continue;
     }
+    const underline = paragraph ? UNDERLINE.exec(line) : null;
+    if (underline) {
+      const level = underline[1][0] === '=' ? 1 : 2;
+      const text = paragraph.lines.map((l) => l.trim()).join(' ');
+      out.splice(paragraph.at, out.length - paragraph.at, shiftHeading(`${'#'.repeat(level)} ${text}`, options, warnings));
+      paragraph = null;
+      continue;
+    }
+    if (BLANK.test(line) || (paragraph ? interruptsParagraph(line) : !startsParagraph(line))) paragraph = null;
+    else if (paragraph) paragraph.lines.push(line);
+    else paragraph = { at: out.length, lines: [line] };
     const heading = shiftHeading(line, options, warnings);
     if (heading != null) out.push(heading);
     else out.push(options.sectionID != null ? prefixFootnotes(line, options.sectionID) : line);

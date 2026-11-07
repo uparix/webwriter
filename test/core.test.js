@@ -12,7 +12,7 @@ import { slugify, uniqueID, assignPrefixes, nextPrefix } from '../src/server/nam
 import { loadComments, saveComments } from '../src/server/commentfile.js';
 import { placePicture } from '../src/server/pictures.js';
 import { check } from '../src/server/check.js';
-import { exportBook, exportChapter, wordFiles, fileTitle, timestamped } from '../shared/export.js';
+import { exportBook, exportChapter, wordFiles, fileTitle, timestamped, transformBody } from '../shared/export.js';
 import { divisions, divisionLabel, effectiveUnit, find, isTrash } from '../shared/tree.js';
 import {
   shiftRange, trimRange, reanchor, mergeComments, encodeComments, decodeComments, repaired,
@@ -263,4 +263,31 @@ test('the checker reports errors and warnings', () => {
   assert.match(result.lines.join('\n'), /warning: comment "a": No section or folder has the id "nope"/);
   fs.writeFileSync(path.join(root, 'comments.json'), '{"version":1,"comments":[{"color":"red"}]}');
   assert.equal(check(root).status, 1);
+});
+
+test('underlined headings are shifted by depth like # headings', () => {
+  const body = [
+    'Title[^1]', '=====', '',
+    'Two lines', 'of heading', '---', '',
+    '- a list item', '---', '',
+    'A paragraph.', '', '---', '',
+    '```', 'code', '===', '```', '',
+    '    indented', '    ---', '',
+    '[^1]: A note.',
+  ].join('\n');
+  const { text } = transformBody(body, { depth: 2, sectionID: 's' });
+  assert.equal(text, [
+    '### Title[^s-1]', '',
+    '#### Two lines of heading', '',
+    '- a list item', '---', '',
+    'A paragraph.', '', '---', '',
+    '```', 'code', '===', '```', '',
+    '    indented', '    ---', '',
+    '[^s-1]: A note.',
+  ].join('\n'));
+  assert.equal(transformBody('Preface\n===', { depth: 1, front: true }).text, '## Preface {-}');
+  assert.equal(transformBody('Kept {-}\n---', { depth: 1, front: true }).text, '### Kept {-}');
+  const deep = transformBody('Deep\n---', { depth: 5 });
+  assert.equal(deep.text, '###### Deep');
+  assert.deepEqual(deep.warnings, ['A heading of level 7 was written at level 6.']);
 });

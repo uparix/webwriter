@@ -507,7 +507,10 @@ function splitCells(line) {
 }
 
 export class Renderer {
-  /** ctx: { scope, notes } — `scope` tells note anchors apart when several sections share one view. */
+  /**
+   * ctx: { scope, notes, indexID, headingShift } — `scope` tells note anchors apart when several
+   * sections share one view; `headingShift` is the depth underlined headings are shifted by.
+   */
   constructor(ctx) {
     this.ctx = ctx;
     this.inline = new Inline(ctx);
@@ -664,12 +667,16 @@ export class Renderer {
         joined.append(n === 0 ? l : l.slice(indentOf(l.text) > 0 ? l.text.length - l.text.trimStart().length : 0));
         if (n < lines.length - 1) joined.append(entries[i + n].line.length >= 0 ? this.newline(entries, i + n) : Mapped.madeUp('\n'));
       });
-      const content = this.inline.render(joined.trim());
       if (setext) {
-        html += `<h${setext} class="h${setext}"${lineAttr(i)}>${content}</h${setext}>`;
+        // Shifted by the piece's depth, as shiftHeadings shifts # headings, and without Pandoc attributes.
+        let text = joined.trim();
+        const attr = /[ \t]*\{[^}]*\}[ \t]*$/.exec(text.text);
+        if (attr) text = text.slice(0, attr.index);
+        const level = clampHeadingLevel(setext + (this.ctx.headingShift ?? 0)).level;
+        html += `<h${level} class="h${level}"${lineAttr(i)}>${this.inline.render(text)}</h${level}>`;
         i = k + 1;
       } else {
-        html += `<p${lineAttr(i)}>${content}</p>`;
+        html += `<p${lineAttr(i)}>${this.inline.render(joined.trim())}</p>`;
         i = k;
       }
     }
@@ -817,7 +824,7 @@ export function renderSection(node, ancestors, division, bodyOf) {
   if (front) html += '<p class="kicker">Front matter</p>';
   if (division) html += `<p class="division">${esc(divisionLabel(division))}</p>`;
   html += `<h${level} class="h${level} node-title">${esc(node.header.title || 'Untitled')}</h${level}>`;
-  html += new Renderer({ scope: node.header.id, indexID: node.header.id }).render(shiftHeadings(bodyOf(node), depth));
+  html += new Renderer({ scope: node.header.id, indexID: node.header.id, headingShift: depth }).render(shiftHeadings(bodyOf(node), depth));
   return html + '</section>';
 }
 

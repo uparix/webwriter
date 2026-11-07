@@ -13,7 +13,7 @@ test('the example book becomes one page with its pictures, diagrams, and stylesh
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-site-'));
   const result = await buildSite(example, out);
   assert.deepEqual(result.warnings, []);
-  assert.deepEqual(result.pictures.sort(), ['images/book-folder.drawio.svg', 'images/open-book.jpg']);
+  assert.deepEqual(result.pictures.sort(), ['images/book-folder.drawio.svg', 'images/open-book.jpg', 'images/writing-workflow.drawio.svg']);
   const html = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
   assert.match(html, /<title>A Field Guide to Webwriter<\/title>/);
   assert.match(html, /<h2 class="h2"[^>]*>Copyright<\/h2>/);
@@ -27,7 +27,7 @@ test('the example book becomes one page with its pictures, diagrams, and stylesh
   assert.doesNotMatch(html, /href="#"/);
   // The trash is left out.
   assert.doesNotMatch(html, /Old Opening/i);
-  for (const file of ['app.css', 'mermaid.min.js', 'images/open-book.jpg', 'images/book-folder.drawio.svg']) {
+  for (const file of ['app.css', 'mermaid.min.js', 'images/open-book.jpg', 'images/book-folder.drawio.svg', 'images/writing-workflow.drawio.svg']) {
     assert.ok(fs.existsSync(path.join(out, file)), file);
   }
 });

@@ -29,6 +29,9 @@ function loadTags(root) {
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+/** A new book's guide for AI agents to its files, written as AGENTS.md in the book folder. */
+const AGENTS_TEMPLATE = path.join(here, 'new-book-agents.md');
+export const AGENTS_FILE = 'AGENTS.md';
 const appRoot = path.resolve(here, '..', '..');
 const STATIC = {
   '/js/': path.join(appRoot, 'public', 'js'),
@@ -149,6 +152,7 @@ export function createServer({
       }
       fsu.makeDirectory(root);
       fsu.writeText(path.join(root, BOOK_FILE), serializeBookFile(title));
+      fsu.writeText(path.join(root, AGENTS_FILE), fsu.readText(AGENTS_TEMPLATE));
       return { root: open(root) };
     },
     'POST /api/recent/clear': () => {

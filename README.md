@@ -20,8 +20,11 @@ window in Chrome, Edge, Brave, or Chromium when one is installed, otherwise the 
 folder with no manuscript becomes an empty book. Closing the last window stops the server.
 
 **New Book…** (File menu, or the No Book Open screen) asks where the book goes and for its name,
-makes a folder with that name holding `book.json` (the name is the title), `manuscript/`, and the
-trash, and opens it. A folder that is already there is used only when it is empty.
+makes a folder with that name holding `book.json` (the name is the title), `manuscript/`, the
+trash, and `AGENTS.md`, and opens it. A folder that is already there is used only when it is empty.
+`AGENTS.md` tells AI agents how the book's files work (pieces and their headers, `book.json`,
+`comments.json`, `tags.json`), so an agent can edit the book from outside while Webwriter shows the
+changes; the template is `src/server/new-book-agents.md`.
 
 | Option | Meaning |
 |---|---|

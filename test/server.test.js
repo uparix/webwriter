@@ -242,6 +242,7 @@ test('a new book is a folder with its name and title, opened at once', async () 
     assert.equal(data.root, root);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'book.json'), 'utf8')), { title: 'My Novel', version: 1 });
     assert.ok(fs.statSync(path.join(root, 'manuscript', 'trash')).isDirectory());
+    assert.match(fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8'), /^# Working on this book \(for AI agents\)\n[\s\S]*## comments\.json/);
     const book = (await call('GET', '/api/book')).data;
     assert.equal(book.root, root);
     assert.equal(book.title, 'My Novel');

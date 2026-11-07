@@ -202,6 +202,7 @@ const MENUS = [
     '-',
     { label: 'Export Manuscript…', shortcut: '⇧⌘E', keys: ['mod+shift+KeyE'], enabled: has.book, action: () => model.exportManuscript() },
     { label: 'Export PDF…', enabled: has.book, action: () => model.exportPDF() },
+    { label: 'Export Word…', enabled: () => has.book() && !model.exportingWord, action: () => model.exportBookWord() },
     { label: 'Export Chapters to Word…', enabled: () => has.book() && !model.exportingWord, action: () => model.exportWord() },
   ] },
   { label: 'Edit', items: [

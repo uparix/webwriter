@@ -1283,6 +1283,25 @@ export class BookModel {
     this.ui.printPDF({ chapter: id, name: timestamped(chapter.filename, new Date()) });
   }
 
+  /** The whole book as one Word file. */
+  async exportBookWord() {
+    if (!this.book || this.exportingWord) return;
+    const file = await this.ui.chooseSaveFile({ title: 'Export Word', name: this.exportName(this.book.title, 'docx'), dir: this.book.root });
+    if (!file) return;
+    await this.save();
+    this.exportingWord = true;
+    this.emit('ui');
+    try {
+      const result = await api.post('/api/export/word-book', { file });
+      this.report(result.warnings, result.file);
+    } catch (error) {
+      this.ui.alert(`Word export failed: ${error.message}`);
+    } finally {
+      this.exportingWord = false;
+      this.emit('ui');
+    }
+  }
+
   /** One Word file for each front-matter piece and each chapter, in a folder the writer chooses. */
   async exportWord() {
     if (!this.book || this.exportingWord) return;

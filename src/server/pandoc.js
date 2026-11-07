@@ -4,11 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { wordFiles, timestamped } from '../../shared/export.js';
+import { wordFiles, exportBook, timestamped } from '../../shared/export.js';
 import { resolveTagColors } from '../../shared/tags.js';
 
 /** Draws tags as shaded text in Word. */
 const TAG_FILTER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tags.lua');
+/** Writes page breaks and chapter numbers as Word page breaks and paragraphs. */
+const BREAK_FILTER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'breaks.lua');
 
 export const NOT_INSTALLED = 'Pandoc is not installed. Install it, for example with `brew install pandoc`, and export again.';
 
@@ -37,7 +39,7 @@ export function docx(markdown, output, resourceDirectory) {
   const pandoc = pandocExecutable();
   if (!pandoc) return Promise.reject(new Error(NOT_INSTALLED));
   return new Promise((resolve, reject) => {
-    const child = spawn(pandoc, ['--from=markdown', '--to=docx', `--lua-filter=${TAG_FILTER}`, '-o', output], {
+    const child = spawn(pandoc, ['--from=markdown', '--to=docx', `--lua-filter=${TAG_FILTER}`, `--lua-filter=${BREAK_FILTER}`, '-o', output], {
       cwd: resourceDirectory, stdio: ['pipe', 'ignore', 'pipe'],
     });
     let errors = '';
@@ -64,4 +66,11 @@ export async function writeChapters(book, directory, date = new Date(), tags = {
     names.push(name);
   }
   return { files: names, warnings: exported.warnings };
+}
+
+/** The whole manuscript as one Word file at `file`. */
+export async function writeBook(book, file, tags = {}) {
+  const exported = exportBook(book.nodes);
+  await docx(resolveTagColors(exported.markdown, tags), file, book.root);
+  return { file, warnings: exported.warnings };
 }

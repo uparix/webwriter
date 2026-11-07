@@ -13,7 +13,7 @@ import { serializeSection } from './header.js';
 import { loadComments, saveComments } from './commentfile.js';
 import { placePicture, storeUpload, isPicture, uniqueName, PICTURE_DIR } from './pictures.js';
 import { slugify } from './naming.js';
-import { writeChapters } from './pandoc.js';
+import { writeChapters, writeBook } from './pandoc.js';
 import { Preferences } from './prefs.js';
 import { FolderWatcher, relevantChange } from './watcher.js';
 import { exportBook } from '../../shared/export.js';
@@ -299,6 +299,18 @@ export function createServer({
         // Tags are drawn in their automatic colors.
       }
       return writeChapters(book, dir, new Date(), tags);
+    },
+    'POST /api/export/word-book': async ({ body }) => {
+      const book = loadBook(requireBook());
+      const file = path.resolve(String(body.file || ''));
+      if (!fsu.isDirectory(path.dirname(file))) throw new HttpError(400, `${path.dirname(file)} is not a folder.`);
+      let tags = {};
+      try {
+        tags = loadTags(book.root);
+      } catch {
+        // Tags are drawn in their automatic colors.
+      }
+      return writeBook(book, file, tags);
     },
   };
 

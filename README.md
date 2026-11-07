@@ -190,7 +190,8 @@ manuscript/
 
 The body of a piece is Markdown, with Pandoc's footnotes and attributes. Help → Markup Reminder
 lists it; the Markup menu, the markup bar, and the command palette (⌘K) insert it. Beyond plain
-Markdown, Webwriter has tables that can be edited cell by cell, tags, diagrams, and an index.
+Markdown, Webwriter has tables that can be edited cell by cell, alignment, tags, diagrams, and an
+index.
 
 ### Tables
 
@@ -210,6 +211,29 @@ reading view offers the row, column, and alignment commands for that cell. Only 
 lines change. Lining up a table changes the spaces in it, so comments inside it find their words
 again, even when the quote's spacing changed. Table rows are monospaced in the editor so the
 columns line up on screen.
+
+### Alignment
+
+**Align Left**, **Center**, and **Align Right** (Markup menu, markup bar, palette) set text,
+pictures, and diagrams to one side. Each wraps lines in a Pandoc fenced div:
+
+```markdown
+::: center
+![The book folder](images/book-folder.drawio.svg){width=60%}
+
+*The book folder*
+:::
+```
+
+With nothing selected, a command wraps the paragraph at the cursor, or the whole fenced block when
+the cursor is in one, so a Mermaid diagram moves as one piece. With a selection, it wraps every line
+the selection touches. On a blank line it inserts an empty block with the cursor inside. `::: left`,
+`::: center`, and `::: right` can also be typed by hand, and nested: a `::: left` inside a centered
+block sets a note under a centered picture back to the left.
+
+A picture moves only when it is narrower than the text, so change the Picture command's
+`{width=100%}` to a smaller width. Code blocks stay set to the left. The preview, the reading views,
+the PDF, the web page, and Word all align the block; text does not flow around a picture.
 
 ### Tags
 
@@ -348,6 +372,11 @@ Pictures, diagrams (Mermaid diagrams as pictures), and tags (shaded in their col
 Pandoc filter (`src/server/breaks.lua`) turns the export's page breaks into Word page breaks, and its part and
 chapter numbers ("Part 1", "Chapter 3") into centered, bold paragraphs, which Word would otherwise
 drop.
+
+Aligned blocks keep their side: `src/server/align.lua` gives their paragraphs the paragraph styles
+Left Aligned, Centered, or Right Aligned, and `src/server/align-styles.lua` sets each style's
+alignment in the written file, so the side can be changed for the whole book in Word. A captioned
+picture in an aligned block becomes the picture and its caption, in italics, as aligned paragraphs.
 
 ### Publishing the book as a web page
 

@@ -291,3 +291,10 @@ test('underlined headings are shifted by depth like # headings', () => {
   assert.equal(deep.text, '###### Deep');
   assert.deepEqual(deep.warnings, ['A heading of level 7 was written at level 6.']);
 });
+
+test('the example book has the AGENTS.md a new book gets', () => {
+  const repo = path.join(fixtures, '..', '..');
+  const template = fs.readFileSync(path.join(repo, 'src', 'server', 'new-book-agents.md'), 'utf8');
+  const example = fs.readFileSync(path.join(repo, 'examples', 'mybook', 'AGENTS.md'), 'utf8');
+  assert.equal(example, template, 'Copy src/server/new-book-agents.md to examples/mybook/AGENTS.md.');
+});

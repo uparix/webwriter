@@ -253,6 +253,99 @@ app uses. It prints errors and warnings and exits with 1 when there are errors.
 node bin/webwriter.js check /path/to/book
 ```
 
+## Publishing the book as a web page
+
+`build` writes the book as one web page into a folder, for GitHub Pages, GitLab Pages, or any web
+server:
+
+```
+node bin/webwriter.js build /path/to/book /path/to/site
+```
+
+The page is the manuscript as the PDF has it, drawn by the same renderer as the preview: the trash
+is left out, notes are at the end of their front matter or chapter, and the parts and chapters are
+numbered. The folder gets:
+
+| File | What it is |
+|---|---|
+| `index.html` | The whole book. |
+| `app.css` | Webwriter's stylesheet. |
+| `images/…` | The pictures the book shows, at their paths in the book folder. |
+| `mermaid.min.js` | Mermaid, only when the book has Mermaid diagrams. The reader's browser draws them. |
+
+Files already in the folder are kept, so a picture taken out of the book stays there until the
+folder is emptied. Warnings, such as a picture that is not in the book folder, are printed, and the
+page is written anyway. The output folder must not be the book folder. `index.html` also opens
+straight from the disk, without a web server.
+
+### On GitHub Pages
+
+Keep the book folder in its own repository. In that repository's settings, under **Pages**, set
+**Source** to **GitHub Actions**, and add `.github/workflows/pages.yml`:
+
+```yaml
+name: Publish the book
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: book
+      - uses: actions/checkout@v4
+        with:
+          repository: uparix/webwriter
+          path: webwriter
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: webwriter
+      - run: node webwriter/bin/webwriter.js build book site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+Each push to `main` publishes the book at `https://<user>.github.io/<repository>/`.
+
+### On GitLab Pages
+
+GitLab publishes what a job named `pages` leaves in `public/`. Add `.gitlab-ci.yml` to the book's
+repository:
+
+```yaml
+pages:
+  image: node:22
+  script:
+    - git clone --depth 1 https://github.com/uparix/webwriter.git /tmp/webwriter
+    - npm ci --prefix /tmp/webwriter
+    - node /tmp/webwriter/bin/webwriter.js build . public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+```
+
+Each push to the default branch publishes the book at the address under **Deploy › Pages**.
+
 ## Working in a browser
 
 Webwriter runs in a web page, which settles a few things:
@@ -275,8 +368,8 @@ Webwriter runs in a web page, which settles a few things:
 
 | Path | What it is |
 |---|---|
-| `bin/webwriter.js` | The command: starts the server and opens a window, or runs `check`. |
-| `src/server/` | The book folder on disk: headers, loading and saving, moves, `book.json`, comments, pictures, Pandoc and its filters, watching, preferences, `check`, the `AGENTS.md` template for new books, and the HTTP API. |
+| `bin/webwriter.js` | The command: starts the server and opens a window, or runs `check` or `build`. |
+| `src/server/` | The book folder on disk: headers, loading and saving, moves, `book.json`, comments, pictures, Pandoc and its filters, watching, preferences, `check`, the web page `build` writes, the `AGENTS.md` template for new books, and the HTTP API. |
 | `shared/` | Code the server and the page share: the tree, moves, export, fences, the index, comments (format, anchors, merging), tags, draw.io and Mermaid diagrams, the markup commands and find, and table editing. |
 | `public/` | The page. `js/model.js` is the open book, `js/render.js` renders Markdown with body offsets, `js/rendered.js` makes the preview and reading view typeable, `js/editor.js` is the CodeMirror editor. |
 | `test/` | Tests, including the export tests against the fixture books in `test/fixtures/`. |

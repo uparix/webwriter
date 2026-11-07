@@ -33,6 +33,13 @@ export function setPictureVersion(version) {
   pictureVersion = version;
 }
 
+/** Makes a mermaid fence's HTML. The page draws it with Mermaid; a built web page leaves that to its reader's browser. */
+let mermaidFence = mermaidHTML;
+
+export function setMermaidFence(make) {
+  mermaidFence = make || mermaidHTML;
+}
+
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /** Mapped text as HTML: runs copied from the body in offset-carrying spans, made-up text as is. */
@@ -557,7 +564,7 @@ export class Renderer {
           this.mermaids = (this.mermaids || 0) + 1;
           const width = mermaidWidth(fence.info);
           const attrs = lineAttr(i) + (width ? ` style="--mermaid-width:${width}"` : '');
-          html += mermaidHTML(content.map((l) => l.text).join('\n'), `${this.ctx.scope}:${this.mermaids}`, code, attrs);
+          html += mermaidFence(content.map((l) => l.text).join('\n'), `${this.ctx.scope}:${this.mermaids}`, code, attrs);
         } else {
           html += code;
         }

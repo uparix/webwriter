@@ -3,6 +3,7 @@
 //
 //   webwriter [book folder] [--port N] [--no-open] [--keep-running]
 //   webwriter check <book folder>
+//   webwriter build <book folder> <output folder>
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,6 +12,7 @@ import { check, USAGE } from '../src/server/check.js';
 
 const HELP = `usage: webwriter [book folder] [options]
        webwriter check <book folder>
+       webwriter build <book folder> <output folder>
 
 Opens the book in a browser window. Without a folder, the last book is reopened.
 
@@ -32,6 +34,24 @@ if (args[0] === 'check') {
   const result = check(args[1]);
   for (const line of result.lines) console.log(line);
   process.exit(result.status);
+}
+
+if (args[0] === 'build') {
+  // Imported only here: it lets Node load the browser's renderer.
+  const { buildSite, USAGE: BUILD_USAGE } = await import('../src/server/site.js');
+  if (args.length !== 3 || args.slice(1).some((arg) => arg.startsWith('-'))) {
+    console.log(BUILD_USAGE);
+    process.exit(2);
+  }
+  try {
+    const result = await buildSite(args[1], args[2]);
+    for (const warning of result.warnings) console.log(`warning: ${warning}`);
+    console.log(`Wrote ${result.file}`);
+    process.exit(0);
+  } catch (error) {
+    console.error(`error: ${error.message}`);
+    process.exit(1);
+  }
 }
 
 let folder = null;

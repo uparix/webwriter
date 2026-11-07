@@ -42,6 +42,41 @@ changes; the template is `src/server/new-book-agents.md`.
 
 `npm link` installs a `webwriter` command.
 
+## On a machine with no screen, or over SSH
+
+Webwriter can run on another machine, such as a Linux server, and be used from the browser on your
+own computer. It only accepts connections from the machine it runs on, so the browser reaches it
+through an SSH tunnel.
+
+1. On the other machine, start it without a window, on a fixed port:
+
+   ```
+   node bin/webwriter.js ~/my-book --no-open --port 4848
+   ```
+
+   Without a window to close, it keeps running until Ctrl+C. To keep it running after you log out,
+   start it inside `tmux` or `screen`.
+
+2. On your computer, open the tunnel, and leave it open while you write:
+
+   ```
+   ssh -L 4848:127.0.0.1:4848 user@other-machine
+   ```
+
+   When Webwriter also runs on your computer, port 4848 is taken there. Pick another port on your
+   side, such as `ssh -L 4850:127.0.0.1:4848 user@other-machine`, and open that port in step 3.
+
+3. Open `http://127.0.0.1:4848` in your browser.
+
+What happens where:
+
+- The book, the folder panels (Open, New Book, Picture, the exports), and Export Word and Export
+  Chapters to Word are on the other machine. Pandoc must be installed there.
+- Export PDF prints from your browser, so the PDF is saved on your computer.
+- A picture can come from either side: one already on the other machine is chosen in its folder
+  panel, and one on your computer is uploaded from the browser.
+- draw.io and Mermaid are served by Webwriter itself, so the other machine needs no internet for them.
+
 ## Following changes on disk
 
 The server watches the book folder. Changes that other programs, such as AI agents, editors, or

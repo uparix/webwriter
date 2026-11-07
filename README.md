@@ -189,7 +189,10 @@ manuscript/
 ## Writing
 
 The body of a piece is Markdown, with Pandoc's footnotes and attributes. Help → Markup Reminder
-lists it; the Markup menu, the markup bar, and the command palette (⌘K) insert it. Beyond plain
+lists it; the Markup menu, the markup bar, and the command palette (⌘K) insert it. Most commands
+switch on and off: a second click on Bold, Italic, Inline code, a subsection, a list, a quotation, or
+an alignment takes off what the first put on, and a list or subsection of the other kind is changed
+instead. Link, Picture, Code block, and Footnote insert again each time. Beyond plain
 Markdown, Webwriter has tables that can be edited cell by cell, alignment, tags, diagrams, and an
 index.
 
@@ -227,7 +230,9 @@ pictures, and diagrams to one side. Each wraps lines in a Pandoc fenced div:
 
 With nothing selected, a command wraps the paragraph at the cursor, or the whole fenced block when
 the cursor is in one, so a Mermaid diagram moves as one piece. With a selection, it wraps every line
-the selection touches. On a blank line it inserts an empty block with the cursor inside. `::: left`,
+the selection touches. On a blank line it inserts an empty block with the cursor inside. Inside a
+block already set to that side, the command takes the block away again; inside one set to another
+side, it changes the side. `::: left`,
 `::: center`, and `::: right` can also be typed by hand, and nested: a `::: left` inside a centered
 block sets a note under a centered picture back to the left.
 

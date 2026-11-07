@@ -46,6 +46,58 @@ function wrap(text, anchor, head, open, close) {
   return { text: next, anchor: cursor, head: cursor };
 }
 
+/** How many `char`s run back from `index`, or forward from it. */
+function runBack(text, index, char) {
+  let n = 0;
+  while (index - n > 0 && text[index - n - 1] === char) n += 1;
+  return n;
+}
+
+function runForward(text, index, char) {
+  let n = 0;
+  while (index + n < text.length && text[index + n] === char) n += 1;
+  return n;
+}
+
+/**
+ * How many marks of one run of `char` to take off for a style, or 0 when the run does not hold it.
+ * `*` and `***` hold emphasis, `**` and `***` strong; a run of backticks holds inline code.
+ */
+function marksToRemove(run, kind) {
+  if (kind === 'emphasis') return run % 2 === 1 ? 1 : 0;
+  if (kind === 'strong') return run >= 2 ? 2 : 0;
+  return run;
+}
+
+/**
+ * Emphasis, Strong, and Inline code switch on and off. When the selection, or an empty pair of marks
+ * at the cursor, already has the style, just outside it or as the selection's own ends, the marks are
+ * taken off. Otherwise the selection is wrapped and stays selected, so a second click takes it off.
+ */
+function toggleWrap(text, anchor, head, kind) {
+  const char = kind === 'inlineCode' ? '`' : '*';
+  const { start, end } = span(text, anchor, head);
+  const outside = Math.min(runBack(text, start, char), runForward(text, end, char));
+  const out = marksToRemove(outside, kind);
+  if (out) {
+    const next = text.slice(0, start - out) + text.slice(start, end) + text.slice(end + out);
+    return { text: next, anchor: start - out, head: end - out };
+  }
+  if (end > start) {
+    const selected = text.slice(start, end);
+    const inside = Math.min(runForward(selected, 0, char), runBack(selected, selected.length, char));
+    const cut = marksToRemove(inside, kind);
+    if (cut && selected.length > 2 * cut) {
+      const next = text.slice(0, start) + selected.slice(cut, selected.length - cut) + text.slice(end);
+      return { text: next, anchor: start, head: end - 2 * cut };
+    }
+  }
+  const mark = { emphasis: '*', strong: '**', inlineCode: '`' }[kind];
+  if (end === start) return wrap(text, anchor, head, mark, mark);
+  const next = splice(text, start, end, mark + text.slice(start, end) + mark);
+  return { text: next, anchor: start + mark.length, head: end + mark.length };
+}
+
 function lineStart(text, index) {
   const at = clamp(text, index);
   if (at === 0) return 0;
@@ -59,6 +111,51 @@ function prefixLine(text, anchor, head, prefix) {
   // The anchor moves with the prefix only when it sits at or after the line start.
   const movedAnchor = anchor >= start ? anchor + prefix.length : anchor;
   return { text: next, anchor: Math.max(0, Math.min(movedAnchor, next.length)), head: cursor + prefix.length };
+}
+
+/** Swap `length` characters at `at` for `insert`, moving offsets past them along and those inside to `at`. */
+function replaceAt(text, anchor, head, at, length, insert) {
+  const move = (o) => (o <= at ? o : o < at + length ? at + insert.length : o - length + insert.length);
+  return { text: splice(text, at, at + length, insert), anchor: move(anchor), head: move(head) };
+}
+
+// The mark a line starts with, for each kind of line command.
+const LINE_MARKS = {
+  heading: /^ {0,3}(#{1,6})(?:[ \t]+|$)/,
+  list: /^([ \t]*)([-*+]|\d{1,9}[.)])(?:[ \t]+|$)/,
+  quotation: /^ {0,3}> ?/,
+};
+
+/**
+ * Subsection, Lower subsection, Bullet list, Numbered list, and Quotation switch on and off. On a line
+ * that already has the command's own mark, the mark is taken off. A subsection of the other level, or a
+ * list of the other kind, is changed to this one. Any other line gets the mark at its start.
+ */
+function toggleLine(text, anchor, head, command) {
+  const cursor = span(text, anchor, head).head;
+  const start = lineStart(text, cursor);
+  const lineEnd = text.indexOf('\n', start);
+  const line = text.slice(start, lineEnd < 0 ? text.length : lineEnd);
+  if (command === 'subsection' || command === 'lowerSubsection') {
+    const own = command === 'subsection' ? '# ' : '## ';
+    const match = LINE_MARKS.heading.exec(line);
+    if (!match) return prefixLine(text, anchor, head, own);
+    const same = match[1].length === own.length - 1;
+    return replaceAt(text, anchor, head, start, match[0].length, same ? '' : own);
+  }
+  if (command === 'bullet' || command === 'numbered') {
+    const own = command === 'bullet' ? '- ' : '1. ';
+    const match = LINE_MARKS.list.exec(line);
+    if (!match) return prefixLine(text, anchor, head, own);
+    const numbered = /\d/.test(match[2]);
+    const same = numbered === (command === 'numbered');
+    // Indentation stays, so a nested item stays nested.
+    const at = start + match[1].length;
+    return replaceAt(text, anchor, head, at, match[0].length - match[1].length, same ? '' : own);
+  }
+  const match = LINE_MARKS.quotation.exec(line);
+  if (match) return replaceAt(text, anchor, head, start, match[0].length, '');
+  return prefixLine(text, anchor, head, '> ');
 }
 
 function codeBlock(text, anchor, head, language) {
@@ -155,10 +252,101 @@ function trailing(after) {
   return after === '' || after.startsWith('\n') ? '\n' : '\n\n';
 }
 
+// A Pandoc fenced div: `::: center` or `::: {.center}` opens one, a line of colons alone closes it.
+const DIV_OPEN = /^ {0,3}:{3,}[ \t]*(\{[^}]*\}|[^\s{}:]+)[ \t]*:*[ \t]*$/;
+const DIV_CLOSE = /^ {0,3}:{3,}[ \t]*$/;
+const SIDES = ['left', 'center', 'right'];
+
+/** The side a div's attributes name, `center` or `{.center #id}`, or null. */
+function sideOf(attributes) {
+  const classes = attributes.startsWith('{')
+    ? attributes.slice(1, -1).split(/\s+/).filter((a) => a.startsWith('.')).map((a) => a.slice(1))
+    : [attributes];
+  return classes.find((c) => SIDES.includes(c)) || null;
+}
+
+/** The closed divs that set a side, as { open, close, side } line numbers. Colons in code close nothing. */
+function alignedDivs(lines) {
+  const found = [];
+  const stack = [];
+  let code = null;
+  lines.forEach((line, n) => {
+    const mark = fenceMark(line);
+    if (code) {
+      if (mark && fenceCloses(code, mark)) code = null;
+      return;
+    }
+    if (mark) {
+      code = { char: mark.char, length: mark.length };
+      return;
+    }
+    const open = DIV_OPEN.exec(line);
+    if (open) stack.push({ open: n, side: sideOf(open[1]) });
+    else if (DIV_CLOSE.test(line) && stack.length) {
+      const div = stack.pop();
+      if (div.side) found.push({ ...div, close: n });
+    }
+  });
+  return found;
+}
+
+/**
+ * The aligned div a command acts on instead of wrapping: without a selection, the innermost one
+ * around the cursor, its fence lines included; with one, a div whose content the selection covers
+ * and whose fences hold it.
+ */
+function alignedDivAt(lines, first, last, selection) {
+  const divs = alignedDivs(lines).filter((d) => (selection
+    ? d.open <= first && last <= d.close && first <= d.open + 1 && d.close - 1 <= last
+    : d.open <= first && first <= d.close));
+  return divs.sort((a, b) => b.open - a.open)[0] || null;
+}
+
+/** Take a div's fence lines away, keeping what was inside. An empty div goes with its blank lines. */
+function unwrapDiv(text, anchor, head, lines, starts, div) {
+  const content = lines.slice(div.open + 1, div.close);
+  const empty = content.every((l) => /^[ \t]*$/.test(l));
+  const from = starts[div.open];
+  const closeEnd = starts[div.close] + lines[div.close].length;
+  let to = Math.min(closeEnd + 1, text.length);
+  // When the div stood alone between blank lines, one of them goes too, so one blank line is left.
+  const before = text.slice(0, from);
+  if (empty && (before === '' || before.endsWith('\n\n')) && text.slice(to).startsWith('\n')) to += 1;
+  const inner = empty ? '' : content.join('\n') + (closeEnd + 1 <= text.length && to > closeEnd ? '\n' : '');
+  const innerStart = from;
+  const innerEnd = from + Math.max(0, inner.length - (inner.endsWith('\n') ? 1 : 0));
+  const openEnd = starts[div.open + 1] ?? text.length;
+  const move = (o) => {
+    if (o < from) return o;
+    if (o < openEnd) return innerStart;
+    if (o < starts[div.close]) return o - (openEnd - from);
+    if (o <= to) return innerEnd;
+    return o - (to - from) + inner.length;
+  };
+  if (from > 0 && to >= text.length && empty) {
+    // An empty div at the end: drop the line end before it too, unless that leaves no blank line.
+    const next = text.slice(0, from).replace(/\n$/, '');
+    return { text: next + (next.endsWith('\n') ? '' : '\n'), anchor: Math.min(move(anchor), next.length), head: Math.min(move(head), next.length) };
+  }
+  return { text: text.slice(0, from) + inner + text.slice(to), anchor: move(anchor), head: move(head) };
+}
+
+/** Name another side on a div's opening line, keeping its colons and other attributes. */
+function changeSide(text, anchor, head, lines, starts, div, side) {
+  const line = lines[div.open];
+  const attributes = DIV_OPEN.exec(line)[1];
+  const changed = attributes.startsWith('{')
+    ? attributes.replace(new RegExp(`\\.${div.side}(?![\\w-])`), `.${side}`)
+    : side;
+  const at = starts[div.open] + line.indexOf(attributes);
+  return replaceAt(text, anchor, head, at, attributes.length, changed);
+}
+
 /**
  * Wraps whole lines in a Pandoc fenced div, such as `::: center` … `:::`, set off by blank lines. With a
  * selection, the lines it touches. Without one, the block at the cursor: the paragraph, or the whole
  * fenced block, such as a Mermaid diagram. On a blank line, an empty div with the cursor inside.
+ * In a div already set to this side, the div is taken away; in one set to another side, it is changed.
  */
 function align(text, anchor, head, side) {
   const opening = `::: ${side}\n`;
@@ -180,6 +368,11 @@ function align(text, anchor, head, side) {
   // A selection that ends at the start of a line leaves that line out.
   let last = end > start && end === starts[lineAt(end)] ? lineAt(end) - 1 : lineAt(end);
   if (last < first) last = first;
+  const div = alignedDivAt(lines, first, last, end > start);
+  if (div) {
+    if (div.side === side) return unwrapDiv(text, anchor, head, lines, starts, div);
+    return changeSide(text, anchor, head, lines, starts, div, side);
+  }
   const fences = fencedRanges(lines);
   const fenceOf = (n) => fences.find(([a, b]) => a <= n && n <= b);
   const fenceFirst = fenceOf(first);
@@ -212,18 +405,18 @@ function align(text, anchor, head, side) {
 /** Apply a command. Returns the new text and selection { text, anchor, head }. */
 export function applyMarkup(command, text, anchor, head, { language = '', picturePath = '' } = {}) {
   switch (command) {
-    case 'emphasis': return wrap(text, anchor, head, '*', '*');
-    case 'strong': return wrap(text, anchor, head, '**', '**');
-    case 'inlineCode': return wrap(text, anchor, head, '`', '`');
+    case 'emphasis':
+    case 'strong':
+    case 'inlineCode': return toggleWrap(text, anchor, head, command);
     case 'link': return wrap(text, anchor, head, '[', '](url)');
     case 'picture':
       if (picturePath === '') return { text, anchor, head };
       return picture(text, anchor, head, picturePath);
-    case 'subsection': return prefixLine(text, anchor, head, '# ');
-    case 'lowerSubsection': return prefixLine(text, anchor, head, '## ');
-    case 'bullet': return prefixLine(text, anchor, head, '- ');
-    case 'numbered': return prefixLine(text, anchor, head, '1. ');
-    case 'quotation': return prefixLine(text, anchor, head, '> ');
+    case 'subsection':
+    case 'lowerSubsection':
+    case 'bullet':
+    case 'numbered':
+    case 'quotation': return toggleLine(text, anchor, head, command);
     case 'codeBlock': return codeBlock(text, anchor, head, language);
     case 'footnote': return footnote(text, anchor, head);
     case 'left':

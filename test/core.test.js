@@ -209,7 +209,7 @@ test('comments shift, trim, re-anchor, and merge', () => {
 });
 
 test('markup commands produce exactly the specified text and cursor', () => {
-  assert.deepEqual(applyMarkup('strong', 'a word', 2, 6), { text: 'a **word**', anchor: 10, head: 10 });
+  assert.deepEqual(applyMarkup('strong', 'a word', 2, 6), { text: 'a **word**', anchor: 4, head: 8 });
   assert.deepEqual(applyMarkup('emphasis', 'ab', 1, 1), { text: 'a**b', anchor: 2, head: 2 });
   assert.deepEqual(applyMarkup('subsection', 'one\ntwo', 5, 5), { text: 'one\n# two', anchor: 7, head: 7 });
   assert.deepEqual(applyMarkup('footnote', 'Text.', 5, 5), { text: 'Text.[^1]\n\n[^1]: ', anchor: 17, head: 17 });
@@ -230,6 +230,42 @@ test('markup commands produce exactly the specified text and cursor', () => {
   assert.deepEqual(matchingCommands('foot').map((c) => c.name), ['Footnote']);
   assert.deepEqual(matchingCommands('pic').map((c) => c.name), ['Picture']);
   assert.deepEqual(changedSpan('hello world', 'hello brave world'), { start: 6, length: 0, insert: 'brave ' });
+});
+
+test('a second click on a markup command takes off what the first put on', () => {
+  const twice = (command, text, anchor, head) => {
+    const once = applyMarkup(command, text, anchor, head);
+    return applyMarkup(command, once.text, once.anchor, once.head);
+  };
+  for (const command of ['subsection', 'lowerSubsection', 'bullet', 'numbered', 'quotation']) {
+    assert.deepEqual(twice(command, 'one\ntwo', 5, 5), { text: 'one\ntwo', anchor: 5, head: 5 }, command);
+  }
+  for (const command of ['emphasis', 'strong', 'inlineCode']) {
+    assert.deepEqual(twice(command, 'a word', 2, 6), { text: 'a word', anchor: 2, head: 6 }, command);
+    assert.deepEqual(twice(command, 'ab', 1, 1), { text: 'ab', anchor: 1, head: 1 }, command);
+  }
+  for (const command of ['left', 'center', 'right']) {
+    assert.deepEqual(twice(command, 'One.\n\nTwo\nlines.\n\nThree.', 7, 7), { text: 'One.\n\nTwo\nlines.\n\nThree.', anchor: 16, head: 16 }, command);
+  }
+  assert.deepEqual(twice('center', 'A\n\n```mermaid\ngraph\n```\n\nB', 16, 16).text, 'A\n\n```mermaid\ngraph\n```\n\nB');
+  assert.equal(twice('center', '', 0, 0).text, '');
+});
+
+test('markup commands change one kind of line or style into the other', () => {
+  assert.deepEqual(applyMarkup('bullet', '1. item', 3, 3), { text: '- item', anchor: 2, head: 2 });
+  assert.equal(applyMarkup('numbered', '  - nested', 6, 6).text, '  1. nested');
+  assert.equal(applyMarkup('bullet', '  - nested', 6, 6).text, '  nested');
+  assert.equal(applyMarkup('subsection', '## T', 4, 4).text, '# T');
+  assert.equal(applyMarkup('quotation', '>> deep', 3, 3).text, '> deep');
+  assert.deepEqual(applyMarkup('strong', 'say **word**', 4, 12), { text: 'say word', anchor: 4, head: 8 });
+  assert.equal(applyMarkup('emphasis', '***word***', 3, 7).text, '**word**');
+  assert.equal(applyMarkup('strong', '***word***', 3, 7).text, '*word*');
+  assert.equal(applyMarkup('emphasis', '**word**', 2, 6).text, '***word***');
+  assert.deepEqual(applyMarkup('right', 'P\n\n::: center\nX\n\nY\n:::\n\nQ', 14, 14), { text: 'P\n\n::: right\nX\n\nY\n:::\n\nQ', anchor: 13, head: 13 });
+  assert.equal(applyMarkup('right', 'A\n\n::: {.center #c}\nX\n:::', 20, 20).text, 'A\n\n::: {.right #c}\nX\n:::');
+  assert.deepEqual(applyMarkup('center', 'P\n\n::: center\nX\nY\n:::\n\nQ', 14, 17), { text: 'P\n\nX\nY\n\nQ', anchor: 3, head: 6 });
+  assert.equal(applyMarkup('left', '::: center\nPic\n\n::: left\nNote\n:::\n:::\n', 27, 27).text, '::: center\nPic\n\nNote\n:::\n');
+  assert.equal(applyMarkup('center', '::: center\n```\n:::\n```\n:::\n', 11, 11).text, '```\n:::\n```\n');
 });
 
 test('whole-book find wraps through the manuscript', () => {

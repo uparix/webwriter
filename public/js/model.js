@@ -15,6 +15,9 @@ import { TABLE_COMMANDS, editTable, findTable, leaveTable } from '/shared/table.
 import { tagsIn, tagColor, normalizeTag, tagMarkup, cleanTagName, colorValue } from '/shared/tags.js';
 import { diagramInSVG } from './diagram.js';
 
+/** Windows open on one server before saving may stall: each holds one of the browser's six connections. */
+const TOO_MANY_WINDOWS = 4;
+
 const clone = (value) => structuredClone(value);
 
 function sameHeader(a, b) {
@@ -130,6 +133,10 @@ export class BookModel {
           return;
         }
         this.boot = event.boot;
+        // Each window holds a connection, and a browser opens at most six to one server. At six, saving and moving stall.
+        if (event.windows >= TOO_MANY_WINDOWS) {
+          this.ui.toast(`${event.windows} Webwriter windows are open. Close all but one, or saving and moving pieces may stop working.`);
+        }
         // After a lost connection, changes may have been missed.
         if (connectedBefore && this.book) this.diskDidChange({ manuscript: true, comments: true, tags: true, pictures: true });
         connectedBefore = true;

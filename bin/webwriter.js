@@ -36,6 +36,8 @@ if (args[0] === 'check') {
 let folder = null;
 let port = Number(process.env.WEBWRITER_PORT) || 4848;
 let fixedPort = Boolean(process.env.WEBWRITER_PORT);
+/** Longer than a browser waits before an event stream reconnects, which is about three seconds. */
+const RECONNECT_WAIT = 4000;
 let openBrowser = true;
 let keepRunning = false;
 let drawioURL;
@@ -61,7 +63,7 @@ if (folder && !fs.existsSync(folder)) {
   process.exit(1);
 }
 
-const { server } = createServer({
+const { server, state } = createServer({
   book: folder,
   quitWhenClosed: !keepRunning && openBrowser,
   ...(drawioURL ? { drawioURL } : {}),
@@ -82,8 +84,19 @@ function listen(attempt = 0) {
     const url = `http://127.0.0.1:${port}/`;
     console.log(`Webwriter is running at ${url}`);
     console.log('Press Ctrl+C to quit.');
-    if (openBrowser) openWindow(url);
+    if (openBrowser) openUnlessReconnected(url);
   });
+}
+
+/**
+ * Windows left open by an earlier run reconnect on their own within a few seconds. A new window then
+ * would be one more, and each holds a connection: past the browser's six per host, requests stall.
+ */
+function openUnlessReconnected(url) {
+  setTimeout(() => {
+    if (state.clients.size > 0) console.log('A Webwriter window reconnected. No new window was opened.');
+    else openWindow(url);
+  }, RECONNECT_WAIT);
 }
 
 /** An app-style window in Chrome or Edge when installed, otherwise the default browser. */

@@ -360,8 +360,8 @@ export function createServer({
 
   function events(req, res) {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-    res.write(`data: ${JSON.stringify({ type: 'hello', root: state.root, boot: bootID })}\n\n`);
     state.clients.add(res);
+    res.write(`data: ${JSON.stringify({ type: 'hello', root: state.root, boot: bootID, windows: state.clients.size })}\n\n`);
     state.everConnected = true;
     clearTimeout(state.quitTimer);
     const ping = setInterval(() => res.write(': ping\n\n'), 20000);

@@ -330,7 +330,9 @@ export function browseSheet({ mode, title, message, action, dir, name = '' }) {
     let chosenFile = null;
     const pathField = h('input', { type: 'text', class: 'path-field', 'aria-label': 'Folder' });
     const list = h('ul', { class: 'browser-list' });
-    const nameField = mode === 'save' ? h('input', { type: 'text', value: name, class: 'name-field', 'aria-label': 'File name' }) : null;
+    // Saving a file and making a new book both ask for a name in the chosen folder.
+    const named = mode === 'save' || mode === 'newBook';
+    const nameField = named ? h('input', { type: 'text', value: name, class: 'name-field', 'aria-label': mode === 'newBook' ? 'Book name' : 'File name' }) : null;
     const status = h('p', { class: 'browser-status' });
     const go = async (target) => {
       try {
@@ -386,6 +388,9 @@ export function browseSheet({ mode, title, message, action, dir, name = '' }) {
         else if (mode === 'save') {
           const file = nameField.value.trim();
           if (file) close(`${current.path.replace(/[\\/]$/, '')}/${file}`);
+        } else if (mode === 'newBook') {
+          const bookName = nameField.value.trim();
+          if (bookName) close({ parent: current.path, name: bookName });
         } else close(current.path);
       },
     }, action);
@@ -403,7 +408,7 @@ export function browseSheet({ mode, title, message, action, dir, name = '' }) {
       message ? h('p', { class: 'sheet-message', text: message }) : null,
       pathField,
       list,
-      nameField ? h('div', { class: 'name-row' }, h('label', { class: 'field-label', text: 'Save as' }), nameField) : null,
+      nameField ? h('div', { class: 'name-row' }, h('label', { class: 'field-label', text: mode === 'newBook' ? 'Book name' : 'Save as' }), nameField) : null,
       status,
       h('div', { class: 'sheet-buttons spread' },
         h('div', {}, newFolder, ...extras),

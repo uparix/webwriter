@@ -168,6 +168,17 @@ export class BookModel {
     });
   }
 
+  /** Make a book folder named `title` in `parent`, and open it. */
+  async newBook(parent, title) {
+    if (!(await this.resolveConflictFirst())) return;
+    await this.serial(async () => {
+      await this.flush();
+      await this.commitBookTitleNow();
+      await api.post('/api/book/new', { parent, title });
+      await this.loadOpened();
+    });
+  }
+
   async loadOpened() {
     const loaded = await api.get('/api/book');
     this.book = loaded;

@@ -311,6 +311,7 @@ body.resizing iframe, body.resizing .CodeMirror { pointer-events: none; }
 /* The empty state */
 #empty-state { flex: 1; display: flex; align-items: center; justify-content: center; }
 .empty-box { text-align: center; max-width: 380px; color: var(--secondary); }
+.empty-buttons { display: flex; justify-content: center; gap: 8px; }
 .empty-box h1 { color: var(--text); font-size: 20px; margin: 10px 0 6px; }
 .empty-icon { width: 64px; height: 64px; color: var(--tertiary); }
 #recent-list { list-style: none; padding: 0; margin: 18px 0 0; font-size: 12px; }

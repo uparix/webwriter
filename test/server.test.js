@@ -232,3 +232,32 @@ test('Export Chapters to Word writes a file for each chapter, with its number', 
     server.close();
   }
 });
+
+test('a new book is a folder with its name and title, opened at once', async () => {
+  const { server, call } = await serve();
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-new-'));
+  try {
+    const { data } = await call('POST', '/api/book/new', { parent, title: 'My Novel' });
+    const root = path.join(parent, 'My Novel');
+    assert.equal(data.root, root);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'book.json'), 'utf8')), { title: 'My Novel', version: 1 });
+    assert.ok(fs.statSync(path.join(root, 'manuscript', 'trash')).isDirectory());
+    const book = (await call('GET', '/api/book')).data;
+    assert.equal(book.root, root);
+    assert.equal(book.title, 'My Novel');
+    assert.deepEqual(order(book.nodes), []);
+
+    // A folder that is already there is used only when it is empty.
+    fs.mkdirSync(path.join(parent, 'Empty'));
+    assert.equal((await call('POST', '/api/book/new', { parent, title: 'Empty' })).status, 200);
+    const taken = await call('POST', '/api/book/new', { parent, title: 'My Novel' });
+    assert.equal(taken.status, 400);
+    assert.match(taken.data.error, /already exists/);
+    for (const title of ['', '  ', 'a/b', 'a\\b', '..', '.hidden']) {
+      assert.equal((await call('POST', '/api/book/new', { parent, title })).status, 400, JSON.stringify(title));
+    }
+    assert.equal((await call('POST', '/api/book/new', { parent: path.join(parent, 'missing'), title: 'X' })).status, 400);
+  } finally {
+    server.close();
+  }
+});

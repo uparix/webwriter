@@ -76,7 +76,10 @@
             <svg viewBox="0 0 16 16" class="empty-icon"><path d="M2 2.5h4.5A1.5 1.5 0 0 1 8 4v10a1.5 1.5 0 0 0-1.5-1.5H2zM14 2.5H9.5A1.5 1.5 0 0 0 8 4v10a1.5 1.5 0 0 1 1.5-1.5H14z" fill="none" stroke="currentColor" stroke-width=".8" stroke-linejoin="round"/></svg>
             <h1>No Book Open</h1>
             <p>A book is a folder of Markdown files. Choose a folder to open it, or an empty folder to start one.</p>
-            <button id="open-book" class="primary">Open Book…</button>
+            <div class="empty-buttons">
+              <button id="new-book">New Book…</button>
+              <button id="open-book" class="primary">Open Book…</button>
+            </div>
             <ul id="recent-list"></ul>
           </div>
         </div>

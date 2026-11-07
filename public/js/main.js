@@ -193,6 +193,7 @@ const MENUS = [
     { label: 'New Folder', shortcut: '⌥⇧⌘N', keys: ['mod+alt+shift+KeyN', 'mod+shift+KeyN'], enabled: has.book, action: () => model.requestCreation('group') },
     { label: 'New Index', enabled: has.book, action: () => model.requestCreation('index', { type: 'top', id: null }) },
     '-',
+    { label: 'New Book…', action: () => newBookPanel() },
     { label: 'Open Book…', shortcut: '⌘O', keys: ['mod+KeyO'], action: () => openBookPanel() },
     { label: 'Open Recent', submenu: () => recentItems() },
     '-',
@@ -332,6 +333,7 @@ function buildToolbar() {
       h('ul', {}, model.book.warnings.map((w) => h('li', { text: w })))), e.currentTarget);
   });
   $('open-book').addEventListener('click', () => openBookPanel());
+  $('new-book').addEventListener('click', () => newBookPanel());
 }
 
 function updateToolbar() {
@@ -354,6 +356,17 @@ async function openBookPanel() {
     action: 'Open Book', dir: model.book?.root ?? model.home ?? '/',
   });
   if (path) model.openBook(path);
+}
+
+/** Where the new book goes, beside the open one by default, and its name. */
+async function newBookPanel() {
+  const root = model.book?.root;
+  const chosen = await browseSheet({
+    mode: 'newBook', title: 'New Book',
+    message: 'Choose where the book goes and give it a name. A folder with that name is made for it.',
+    action: 'Create Book', dir: root ? root.replace(/[\\/][^\\/]*[\\/]?$/, '') || '/' : model.home ?? '/',
+  });
+  if (chosen) model.newBook(chosen.parent, chosen.name);
 }
 
 async function openPalette() {

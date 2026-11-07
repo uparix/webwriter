@@ -19,6 +19,10 @@ The server listens on `127.0.0.1:4848` (or the next free port) and opens a windo
 window in Chrome, Edge, Brave, or Chromium when one is installed, otherwise the default browser. A
 folder with no manuscript becomes an empty book. Closing the last window stops the server.
 
+**New Book…** (File menu, or the No Book Open screen) asks where the book goes and for its name,
+makes a folder with that name holding `book.json` (the name is the title), `manuscript/`, and the
+trash, and opens it. A folder that is already there is used only when it is empty.
+
 | Option | Meaning |
 |---|---|
 | `--port N` | Listen on port N. |

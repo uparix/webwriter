@@ -10,6 +10,7 @@ import {
   loadBook, saveNode, saveTitle, createNode, moveNode, trashNode, emptyTrash, nodeFilePath, fileMatches,
 } from './bookstore.js';
 import { serializeSection } from './header.js';
+import { BOOK_FILE, serializeBookFile } from './bookfile.js';
 import { loadComments, saveComments } from './commentfile.js';
 import { placePicture, storeUpload, isPicture, uniqueName, PICTURE_DIR } from './pictures.js';
 import { slugify } from './naming.js';
@@ -133,6 +134,23 @@ export function createServer({
       home: os.homedir(), platform: process.platform, sep: path.sep, drawioURL,
     }),
     'POST /api/open': ({ body }) => ({ root: open(body.path) }),
+    /** A new book: a folder named after the book in `parent`, with the title in book.json. */
+    'POST /api/book/new': ({ body }) => {
+      const title = String(body.title || '').trim();
+      if (!title) throw new HttpError(400, 'A book needs a name.');
+      if (/[\\/]/.test(title) || title === '.' || title === '..' || title.startsWith('.')) {
+        throw new HttpError(400, 'A book name cannot contain / or \\, or start with a dot.');
+      }
+      const parent = path.resolve(String(body.parent || ''));
+      if (!fsu.isDirectory(parent)) throw new HttpError(400, `${parent} is not a folder.`);
+      const root = path.join(parent, title);
+      if (fsu.exists(root) && (!fsu.isDirectory(root) || fsu.readDir(root).length > 0)) {
+        throw new HttpError(400, `${root} already exists. Choose another name, or open it with Open Book.`);
+      }
+      fsu.makeDirectory(root);
+      fsu.writeText(path.join(root, BOOK_FILE), serializeBookFile(title));
+      return { root: open(root) };
+    },
     'POST /api/recent/clear': () => {
       prefs.clearRecent();
       return { ok: true };

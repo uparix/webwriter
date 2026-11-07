@@ -1,2 +1,6 @@
 node_modules/
 .DS_Store
+
+# Books made while trying Webwriter out. Only the example book is kept.
+examples/*
+!examples/mybook/

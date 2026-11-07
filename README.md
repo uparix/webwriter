@@ -1,17 +1,54 @@
 # Webwriter
 
-A writing application for one long book, in the browser. A book is a folder of plain files: a tree
-of Markdown files and folders for the text, and small JSON files for the title, the comments, and the
-tag colors. A Node.js server reads and writes the folder, and the page shows the outline, an editor,
-and the rendered text.
+A writing application for one long book, such as a novel, a manual, or a thesis, that runs in the
+browser. The book is not a single document but a folder of plain files: each chapter, section, or
+scene is a Markdown file, and folders group them into parts and chapters. Webwriter shows that
+folder as an outline, an editor, and the rendered book, and exports it to PDF, Word, Markdown, and a
+web page.
 
-## Running
+![Webwriter with the example book open: the outline on the left, the Markdown editor and the
+rendered text in the middle, and review comments on the right](docs/webwriter.png)
+
+Because the book is plain files:
+
+- it can be kept in git, and every change shows up in a diff;
+- AI agents, scripts, and other editors can work on it while Webwriter is open, and Webwriter shows
+  their changes within about a second, without overwriting unsaved typing;
+- nothing is locked in: the text is Markdown that Pandoc and other programs read.
+
+Webwriter is a small Node.js server, which reads and writes the book folder, and a page in the
+browser, which is the app. There is no build step, and the only dependencies are CodeMirror and
+Mermaid.
+
+## Trying it
 
 Needs Node.js 22.15 or later.
 
 ```
+git clone https://github.com/uparix/webwriter.git
+cd webwriter
 npm install
-npm start                      # reopens the last book
+node bin/webwriter.js examples/mybook
+```
+
+The example book, `examples/mybook`, is a short book about Webwriter, written with Webwriter: each
+chapter shows a feature and uses it. Reading it is the quickest way to see what Webwriter does.
+
+In the window:
+
+- **Select a text** in the outline to write it: the Markdown editor, and beside it the rendered
+  preview, which can be typed in too. The **Markup** button (⇧⌘M) shows or hides that second pane.
+  The form under the outline edits the text's title, synopsis, and how it is laid out (see
+  [The book on disk](#the-book-on-disk)).
+- **Select a folder, or the book row** at the top, to read it straight through, as it will print.
+- **Comments**, at the top right, shows the review comments. Select words and choose Review → Add
+  Comment to make one.
+- **Help → Markup Reminder** lists the Markdown that Webwriter understands.
+
+## Running
+
+```
+npm start                         # reopens the last book, or shows No Book Open
 node bin/webwriter.js ~/my-book   # opens this book folder
 ```
 
@@ -22,8 +59,7 @@ folder with no manuscript becomes an empty book. Closing the last window stops t
 server is started again, windows still open from before reconnect on their own within a few seconds
 and load the page again, and no new window is opened.
 
-The example book, `examples/mybook`, shows what Webwriter can do: `node bin/webwriter.js
-examples/mybook`. Other books made in `examples/`, such as with New Book, are left out of git.
+Other books made in `examples/`, such as with New Book, are left out of git.
 
 **New Book…** (File menu, or the No Book Open screen) asks where the book goes and for its name,
 makes a folder with that name holding `book.json` (the name is the title), `manuscript/`, the
@@ -40,64 +76,123 @@ changes; the template is `src/server/new-book-agents.md`.
 | `--drawio-url URL` | The draw.io editor for diagrams (default: the copy in `vendor/drawio/`, else `https://embed.diagrams.net/`). |
 | `-h`, `--help` | Show the options. |
 
-`npm link` installs a `webwriter` command.
+`npm link` installs a `webwriter` command. [Pandoc](https://pandoc.org) is needed only for the Word
+exports.
 
-## On a machine with no screen, or over SSH
+## Words used here
 
-Webwriter can run on another machine, such as a Linux server, and be used from the browser on your
-own computer. It only accepts connections from the machine it runs on, so the browser reaches it
-through an SSH tunnel.
+| Word | Meaning |
+|---|---|
+| **Book** | A folder holding `book.json` and `manuscript/`. Webwriter has one book open at a time. |
+| **Outline** | The tree on the left. Each row is a file or folder in `manuscript/`, in book order. |
+| **Piece** | Any row of the outline: a text or a folder. |
+| **Text** | A piece that is one Markdown file, such as `020-arrival.md`. New Text makes one. |
+| **Folder** | A piece that holds other pieces. It has text of its own, in its `_index.md`. New Folder makes one. |
+| **Header** | The lines between `---` at the top of a piece's file: its id, title, synopsis, status, role, and unit. |
+| **Body** | A piece's text after its header. |
+| **Unit** | How a piece is laid out: `part`, `chapter`, `section`, or `text`. See [How the book is laid out](#how-the-book-is-laid-out). |
+| **Role** | `body`, or `front` for front matter, which is never numbered. |
+| **Status** | Where a piece stands: `idea`, `draft`, `revise`, or `done`. Shown in the outline. |
+| **Synopsis** | One line about a piece, shown under its title in the outline and never printed. |
+| **Trash** | `manuscript/trash/`. Deleted pieces go there and are left out of the book until the trash is emptied. |
+| **Preview** | The rendered text of the selected text, beside the editor. |
+| **Reading view** | The rendered text of a folder or the whole book, straight through. |
+| **Manuscript** | The book as it is exported: every piece in order, with its title as a heading, the trash left out. |
 
-1. On the other machine, start it without a window, on a fixed port:
+"Section" and "text" each have two meanings, which are easy to mix up. As a **unit**, `section`
+starts a new page and `text` runs on. As a **piece**, a text is a single file. In the code, a text
+is a node of kind `section` and a folder a node of kind `group`.
 
-   ```
-   node bin/webwriter.js ~/my-book --no-open --port 4848
-   ```
+## The book on disk
 
-   Without a window to close, it keeps running until Ctrl+C. To keep it running after you log out,
-   start it inside `tmux` or `screen`.
+```
+my-book/
+  book.json            the title
+  manuscript/          the text: a tree of folders and Markdown files
+    010-opening.md     a text
+    020-part-one/      a folder, which holds pieces and has text of its own
+      _index.md        the folder's header and text
+      010-arrival.md
+      020-the-ferry.md
+    trash/             deleted pieces, not part of the book
+  comments.json        review comments (missing when there are none)
+  tags.json            tag colors (optional)
+  images/              pictures and draw.io diagrams
+  AGENTS.md            how these files work, for AI agents
+```
 
-2. On your computer, open the tunnel, and leave it open while you write:
+The number prefix (`010-`, `020-`, in steps of 10, at least three digits) sets the order among
+siblings; the rest of the name is a slug of the title. Webwriter renames files and folders when
+pieces are moved, so a piece is known by its `id`, never by its file name.
 
-   ```
-   ssh -L 4848:127.0.0.1:4848 user@other-machine
-   ```
+A text, or a folder's `_index.md`, starts with a header, then the body:
 
-   When Webwriter also runs on your computer, port 4848 is taken there. Pick another port on your
-   side, such as `ssh -L 4850:127.0.0.1:4848 user@other-machine`, and open that port in step 3.
+```markdown
+---
+id: arrival
+title: "Arrival: the first night"
+synopsis: Mara reaches the harbor town.
+status: draft
+role: body
+unit: chapter
+---
+The ferry was late.[^1]
 
-3. Open `http://127.0.0.1:4848` in your browser.
+# The harbor
 
-What happens where:
+[^1]: It always is.
+```
 
-- The book, the folder panels (Open, New Book, Picture, the exports), and Export Word and Export
-  Chapters to Word are on the other machine. Pandoc must be installed there.
-- Export PDF prints from your browser, so the PDF is saved on your computer.
-- A picture can come from either side: one already on the other machine is chosen in its folder
-  panel, and one on your computer is uploaded from the browser.
-- draw.io and Mermaid are served by Webwriter itself, so the other machine needs no internet for them.
+| Field | Values |
+|---|---|
+| `id` | Unique in the book, lowercase words joined by hyphens. It never changes; comments point at it. |
+| `title`, `synopsis` | One line each. Quoted when they hold characters other than letters, digits, spaces, and `. , ' _ -`. |
+| `status` | `idea`, `draft`, `revise`, or `done`. |
+| `role` | `body`, or `front` for front matter. |
+| `unit` | `part`, `chapter`, `section`, or `text`. |
 
-## Following changes on disk
+The body is Pandoc Markdown. The title is not repeated in it: Webwriter prints the title as the
+piece's heading, and a `#` heading in the body is a subsection under it. Footnote labels belong to
+their file, so two texts can each have a `[^1]`. `AGENTS.md` in each new book has the full rules for
+programs that write these files, `comments.json` and `tags.json` included.
 
-The server watches the book folder. Changes that other programs, such as AI agents, editors, or
-git, make to `manuscript/`, `book.json`, `comments.json`, `tags.json`, or `images/` reach the page
-within about a second:
+### How the book is laid out
 
-- the outline, title, header form, editor, and rendered views reload;
-- comments are merged by id, and a comment written with only its `quote` is placed and written back
-  (by an open window, so the next window to open does it when none is);
-- tag colors and pictures, diagrams among them, are drawn again;
-- unsaved typing is never overwritten. When the open text changed on disk too, a bar asks which
-  version to keep, and nothing is written until the writer chooses;
-- comments saved while another program writes `comments.json` are merged with its changes, not
-  written over them;
-- a `comments.json` or `tags.json` that cannot be read is never written over.
+The manuscript is every piece in outline order, each one's title as a heading and then its body.
+The header decides the rest:
 
-When the folder cannot be watched, such as after it was moved or when the system has no watches
-left, a bar says so. Webwriter tries again every few seconds and, once it can, reads the book again
-for the changes it missed.
+```
+manuscript/
+  010-front-matter/     role: front     no numbers, for it or anything inside it
+  020-contents.md       unit: section   starts a page
+  030-part-one/         unit: part      "Part 1", starts a page
+    010-arrival.md      unit: chapter   "Chapter 1", starts a page
+    020-the-ferry.md    unit: text      runs on after Chapter 1
+  040-part-two/         unit: part      "Part 2"
+    010-the-town.md     unit: chapter   "Chapter 2": chapters count through the whole book
+```
 
-## Tables
+- **Numbers.** Parts and chapters are numbered in book order, each with its own count, and
+  chapters do not start again at 1 in a new part. The numbers are worked out each time and never
+  stored, so moving a chapter renumbers the book.
+- **Front matter.** A piece with role `front`, or anything inside a folder with role `front`, takes
+  no number, whatever its unit.
+- **Pages.** A part, a chapter, or a section starts a new page in the PDF and Word; a text runs on
+  after the piece before it. A piece with no unit is a section when it is a folder and a text when
+  it is a file. `<div class="page-break"></div>` on a line of its own breaks the page anywhere.
+- **Headings.** A piece's title is a heading one level deeper than its folder's: a top-level piece is
+  `#`, a piece inside one folder `##`, and so on. Headings in the body move down by the same amount,
+  up to `######`.
+- **Notes.** Footnotes print at the end of the front matter, at the end of each chapter, or after a
+  piece that is in neither.
+
+## Writing
+
+The body of a piece is Markdown, with Pandoc's footnotes and attributes. Help → Markup Reminder
+lists it; the Markup menu, the markup bar, and the command palette (⌘K) insert it. Beyond plain
+Markdown, Webwriter has tables that can be edited cell by cell, tags, diagrams, and an index.
+
+### Tables
 
 Pipe tables (`| a | b |`) can be edited in the Markdown editor:
 
@@ -116,7 +211,7 @@ lines change. Lining up a table changes the spaces in it, so comments inside it 
 again, even when the quote's spacing changed. Table rows are monospaced in the editor so the
 columns line up on screen.
 
-## Tags
+### Tags
 
 A tag is a colored label in the text, written as a Pandoc span with the class `tag`:
 
@@ -146,7 +241,7 @@ bar, and the palette insert a tag, with the book's tags to choose from. Markup �
 right-clicking a tag in the preview, changes colors. Changes to `tags.json` by other programs show
 within about a second, and a `tags.json` that cannot be read is never written over.
 
-## Diagrams
+### Diagrams
 
 Diagrams are drawn in [draw.io](https://www.drawio.com) and kept as editable SVG files in `images/`
 (`name.drawio.svg`): an SVG picture with the draw.io diagram stored inside it. The text refers to one
@@ -173,7 +268,7 @@ When a diagram is saved, Webwriter keeps draw.io's SVG in its light colors (draw
 both light and dark mode, and a browser in dark mode would draw it dark on the white page) and drops
 draw.io's "Text is not SVG" note, which only Word would show.
 
-### Mermaid diagrams
+#### Mermaid diagrams
 
 A diagram can also be written as text, in [Mermaid](https://mermaid.js.org) syntax, in a `mermaid`
 code fence:
@@ -195,7 +290,7 @@ the Word exports the page draws each diagram as a picture and sends it along; a 
 be drawn stays code, with a warning. Mermaid comes with `npm install` and is served from Webwriter's
 own address, so it works without the internet.
 
-## Index
+### Index
 
 An index is a text that lists every piece after it in the book, numbered by its place in the
 outline and indented by depth:
@@ -229,7 +324,17 @@ that piece. The exported Markdown, the PDF, and Word write the list out as numbe
 Markdown programs show the fence as an empty code block. The example book's Contents page is an
 index.
 
-## Word export
+## Exporting and publishing
+
+The File menu exports the manuscript, as laid out in [How the book is laid out](#how-the-book-is-laid-out):
+
+- **Export Manuscript…** (⇧⌘E) writes it as one Pandoc Markdown file.
+- **Export PDF…** opens a print view on Letter pages with page numbers; choose "Save as PDF" in the
+  print dialog. The suggested file name is the timestamped export name.
+- **Export Word…** and **Export Chapters to Word…** run Pandoc (see [Word export](#word-export)).
+- `webwriter build` writes it as a web page (see [Publishing the book as a web page](#publishing-the-book-as-a-web-page)).
+
+### Word export
 
 Both Word exports run [Pandoc](https://pandoc.org) on the server, which must be installed (for
 example `brew install pandoc`):
@@ -244,16 +349,7 @@ Pandoc filter (`src/server/breaks.lua`) turns the export's page breaks into Word
 chapter numbers ("Part 1", "Chapter 3") into centered, bold paragraphs, which Word would otherwise
 drop.
 
-## Checking a book
-
-Agents and scripts that edit `book.json`, `comments.json`, or `tags.json` can check their work with the code the
-app uses. It prints errors and warnings and exits with 1 when there are errors.
-
-```
-node bin/webwriter.js check /path/to/book
-```
-
-## Publishing the book as a web page
+### Publishing the book as a web page
 
 `build` writes the book as one web page into a folder, for GitHub Pages, GitLab Pages, or any web
 server:
@@ -278,7 +374,7 @@ folder is emptied. Warnings, such as a picture that is not in the book folder, a
 page is written anyway. The output folder must not be the book folder. `index.html` also opens
 straight from the disk, without a web server.
 
-### On GitHub Pages
+#### On GitHub Pages
 
 Keep the book folder in its own repository. In that repository's settings, under **Pages**, set
 **Source** to **GitHub Actions**, and add `.github/workflows/pages.yml`:
@@ -325,7 +421,7 @@ jobs:
 
 Each push to `main` publishes the book at `https://<user>.github.io/<repository>/`.
 
-### On GitLab Pages
+#### On GitLab Pages
 
 GitLab publishes what a job named `pages` leaves in `public/`. Add `.gitlab-ci.yml` to the book's
 repository:
@@ -346,6 +442,40 @@ pages:
 
 Each push to the default branch publishes the book at the address under **Deploy › Pages**.
 
+## Working alongside agents and other programs
+
+Any program can change the book's files while Webwriter is open: an AI agent, a text editor, git,
+or a script. Each new book has an `AGENTS.md` that explains the files to agents.
+
+### Following changes on disk
+
+The server watches the book folder. Changes that other programs, such as AI agents, editors, or
+git, make to `manuscript/`, `book.json`, `comments.json`, `tags.json`, or `images/` reach the page
+within about a second:
+
+- the outline, title, header form, editor, and rendered views reload;
+- comments are merged by id, and a comment written with only its `quote` is placed and written back
+  (by an open window, so the next window to open does it when none is);
+- tag colors and pictures, diagrams among them, are drawn again;
+- unsaved typing is never overwritten. When the open text changed on disk too, a bar asks which
+  version to keep, and nothing is written until the writer chooses;
+- comments saved while another program writes `comments.json` are merged with its changes, not
+  written over them;
+- a `comments.json` or `tags.json` that cannot be read is never written over.
+
+When the folder cannot be watched, such as after it was moved or when the system has no watches
+left, a bar says so. Webwriter tries again every few seconds and, once it can, reads the book again
+for the changes it missed.
+
+### Checking a book
+
+Agents and scripts that edit `book.json`, `comments.json`, or `tags.json` can check their work with the code the
+app uses. It prints errors and warnings and exits with 1 when there are errors.
+
+```
+node bin/webwriter.js check /path/to/book
+```
+
 ## Working in a browser
 
 Webwriter runs in a web page, which settles a few things:
@@ -357,14 +487,49 @@ Webwriter runs in a web page, which settles a few things:
 - **Open, save, and folder panels** browse the server's folders, since the page cannot see the disk.
   The Picture command moves a file from there into `images/`, or takes an upload from the browser's
   computer.
-- **Export PDF** opens a print view of the manuscript on Letter pages with page numbers; choose
-  "Save as PDF" in the print dialog. The suggested file name is the timestamped export name.
-- **Export Word** and **Export Chapters to Word** run Pandoc on the server (see
-  [Word export](#word-export)).
+- **Export PDF** prints from the browser, so the PDF is saved where the browser runs. **Export
+  Word** runs Pandoc on the server.
 - **Preferences** (last book, recent books, review author, comment color) are kept in
   `~/.config/webwriter/preferences.json` (`WEBWRITER_PREFS` overrides the path).
 
-## Layout
+## On a machine with no screen, or over SSH
+
+Webwriter can run on another machine, such as a Linux server, and be used from the browser on your
+own computer. It only accepts connections from the machine it runs on, so the browser reaches it
+through an SSH tunnel.
+
+1. On the other machine, start it without a window, on a fixed port:
+
+   ```
+   node bin/webwriter.js ~/my-book --no-open --port 4848
+   ```
+
+   Without a window to close, it keeps running until Ctrl+C. To keep it running after you log out,
+   start it inside `tmux` or `screen`.
+
+2. On your computer, open the tunnel, and leave it open while you write:
+
+   ```
+   ssh -L 4848:127.0.0.1:4848 user@other-machine
+   ```
+
+   When Webwriter also runs on your computer, port 4848 is taken there. Pick another port on your
+   side, such as `ssh -L 4850:127.0.0.1:4848 user@other-machine`, and open that port in step 3.
+
+3. Open `http://127.0.0.1:4848` in your browser.
+
+What happens where:
+
+- The book, the folder panels (Open, New Book, Picture, the exports), and Export Word and Export
+  Chapters to Word are on the other machine. Pandoc must be installed there.
+- Export PDF prints from your browser, so the PDF is saved on your computer.
+- A picture can come from either side: one already on the other machine is chosen in its folder
+  panel, and one on your computer is uploaded from the browser.
+- draw.io and Mermaid are served by Webwriter itself, so the other machine needs no internet for them.
+
+## Development
+
+### Layout
 
 | Path | What it is |
 |---|---|
@@ -374,10 +539,11 @@ Webwriter runs in a web page, which settles a few things:
 | `public/` | The page. `js/model.js` is the open book, `js/render.js` renders Markdown with body offsets, `js/rendered.js` makes the preview and reading view typeable, `js/editor.js` is the CodeMirror editor. |
 | `test/` | Tests, including the export tests against the fixture books in `test/fixtures/`. |
 | `examples/mybook/` | The example book. |
+| `docs/` | The screenshot at the top of this README. |
 | `vendor/drawio/` | draw.io's web app, served at `/drawio/`. |
 | `scripts/` | `fetch-drawio.mjs` downloads draw.io into `vendor/drawio/`; `make-sample-diagram.mjs` writes the example book's sample diagram. |
 
-## Tests
+### Tests
 
 ```
 npm test

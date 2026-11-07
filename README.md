@@ -17,7 +17,12 @@ node bin/webwriter.js ~/my-book   # opens this book folder
 
 The server listens on `127.0.0.1:4848` (or the next free port) and opens a window: an app-style
 window in Chrome, Edge, Brave, or Chromium when one is installed, otherwise the default browser. A
-folder with no manuscript becomes an empty book. Closing the last window stops the server.
+folder with no manuscript becomes an empty book. Closing the last window stops the server. When the
+server is started again, windows still open from before reconnect on their own within a few seconds
+and load the page again, and no new window is opened.
+
+The example book, `examples/mybook`, shows what Webwriter can do: `node bin/webwriter.js
+examples/mybook`. Other books made in `examples/`, such as with New Book, are left out of git.
 
 **New Book…** (File menu, or the No Book Open screen) asks where the book goes and for its name,
 makes a folder with that name holding `book.json` (the name is the title), `manuscript/`, the
@@ -28,23 +33,27 @@ changes; the template is `src/server/new-book-agents.md`.
 
 | Option | Meaning |
 |---|---|
-| `--port N` | Listen on port N. |
+| `--port N` | Listen on port N, and stop if it is taken. `WEBWRITER_PORT` does the same. |
 | `--no-open` | Do not open a window. |
 | `--keep-running` | Keep running after the last window closes. |
 | `--drawio-url URL` | The draw.io editor for diagrams (default: the copy in `vendor/drawio/`, else `https://embed.diagrams.net/`). |
+| `-h`, `--help` | Show the options. |
 
 `npm link` installs a `webwriter` command.
 
 ## Following changes on disk
 
 The server watches the book folder. Changes that other programs, such as AI agents, editors, or
-git, make to `manuscript/`, `book.json`, or `comments.json` reach the page within about a second:
+git, make to `manuscript/`, `book.json`, `comments.json`, `tags.json`, or `images/` reach the page
+within about a second:
 
 - the outline, title, header form, editor, and rendered views reload;
-- comments are merged by id, and a comment written with only its `quote` is placed and written back;
+- comments are merged by id, and a comment written with only its `quote` is placed and written back
+  (by an open window, so the next window to open does it when none is);
+- tag colors and pictures, diagrams among them, are drawn again;
 - unsaved typing is never overwritten. When the open text changed on disk too, a bar asks which
   version to keep, and nothing is written until the writer chooses;
-- a `comments.json` that cannot be read is never written over.
+- a `comments.json` or `tags.json` that cannot be read is never written over.
 
 ## Tables
 
@@ -223,10 +232,13 @@ Webwriter runs in a web page, which settles a few things:
 | Path | What it is |
 |---|---|
 | `bin/webwriter.js` | The command: starts the server and opens a window, or runs `check`. |
-| `src/server/` | The book folder on disk: headers, loading and saving, moves, `book.json`, comments, pictures, Pandoc, watching, and the HTTP API. |
-| `shared/` | Code the server and the page share: the tree, export, fences, comments (format, anchors, merging), the markup commands and find, and table editing. |
+| `src/server/` | The book folder on disk: headers, loading and saving, moves, `book.json`, comments, pictures, Pandoc and its filters, watching, preferences, `check`, the `AGENTS.md` template for new books, and the HTTP API. |
+| `shared/` | Code the server and the page share: the tree, moves, export, fences, the index, comments (format, anchors, merging), tags, draw.io and Mermaid diagrams, the markup commands and find, and table editing. |
 | `public/` | The page. `js/model.js` is the open book, `js/render.js` renders Markdown with body offsets, `js/rendered.js` makes the preview and reading view typeable, `js/editor.js` is the CodeMirror editor. |
 | `test/` | Tests, including the export tests against the fixture books in `test/fixtures/`. |
+| `examples/mybook/` | The example book. |
+| `vendor/drawio/` | draw.io's web app, served at `/drawio/`. |
+| `scripts/` | `fetch-drawio.mjs` downloads draw.io into `vendor/drawio/`; `make-sample-diagram.mjs` writes the example book's sample diagram. |
 
 ## Tests
 

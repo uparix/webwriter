@@ -468,10 +468,16 @@ const TAG_ICON = '<svg class="bar-icon" viewBox="0 0 16 16" aria-hidden="true"><
 
 const DIAGRAM_ICON = '<svg class="bar-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="3.5" rx=".8" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="11" width="5" height="3.5" rx=".8" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="9.5" y="11" width="5" height="3.5" rx=".8" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3M4 11V8h8v3" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>';
 
+const alignIcon = (short) => `<svg class="bar-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12M${short}h7M2 9.67h12M${short.replace('6.33', '13')}h7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+const LEFT_ICON = alignIcon('2 6.33');
+const CENTER_ICON = alignIcon('4.5 6.33');
+const RIGHT_ICON = alignIcon('7 6.33');
+
 const BAR_GROUPS = [
   [['strong', '<b>B</b>'], ['emphasis', '<i>I</i>'], ['inlineCode', '<span class="mono">&lt;/&gt;</span>']],
   [['subsection', 'H1'], ['lowerSubsection', 'H2']],
   [['bullet', '•≡'], ['numbered', '1.'], ['quotation', '❝']],
+  [['left', LEFT_ICON], ['center', CENTER_ICON], ['right', RIGHT_ICON]],
   [['link', '🔗'], ['picture', '🖼'], ['codeBlock', '<span class="mono">{ }</span>'], ['footnote', 'x¹']],
   [['tag', TAG_ICON], ['diagram', DIAGRAM_ICON], ['insertTable', TABLE_ICON], ['tableMenu', '▾']],
 ];

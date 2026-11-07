@@ -336,6 +336,29 @@ test('Export Word writes the whole book into one Word file', { skip: wordSkip },
   }
 });
 
+test('Export Word aligns ::: left, center, and right divs, a captioned picture included', { skip: wordSkip }, async () => {
+  const { root, server, call } = await serve();
+  try {
+    writeSmallBook(root);
+    const section = fs.readdirSync(path.join(root, 'manuscript'), { recursive: true })
+      .map((name) => path.join(root, 'manuscript', name)).filter((file) => file.endsWith('.md')).find((file) => fs.readFileSync(file, 'utf8').includes('Alpha text.'));
+    fs.writeFileSync(section, fs.readFileSync(section, 'utf8').replace('Alpha text.', 'Alpha text.\n\n::: center\nMiddle text.\n\n![A caption](missing.png)\n:::\n\n::: right\nRight text.\n:::\n\n::: left\nLeft text.\n:::\n'));
+    const file = path.join(root, 'book.docx');
+    await call('POST', '/api/export/word-book', { file });
+    const xml = documentXML(file);
+    assert.match(xml, /<w:pStyle w:val="Centered" \/><\/w:pPr><w:r><w:t xml:space="preserve">Middle/);
+    assert.ok(!xml.includes('CaptionedFigure'));
+    const styles = execFileSync('unzip', ['-p', file, 'word/styles.xml'], { encoding: 'utf8' });
+    assert.match(xml, /<w:pStyle w:val="RightAligned" \/><\/w:pPr><w:r><w:t xml:space="preserve">Right/);
+    assert.match(xml, /<w:pStyle w:val="LeftAligned" \/><\/w:pPr><w:r><w:t xml:space="preserve">Left/);
+    for (const [id, value] of [['Centered', 'center'], ['RightAligned', 'right'], ['LeftAligned', 'left']]) {
+      assert.match(styles, new RegExp(`w:styleId="${id}"(?:(?!</w:style>)[^])*<w:jc w:val="${value}"/></w:pPr></w:style>`), id);
+    }
+  } finally {
+    server.close();
+  }
+});
+
 test('Export Chapters to Word writes a file for each chapter, with its number', { skip: wordSkip }, async () => {
   const { root, server, call } = await serve();
   try {

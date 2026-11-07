@@ -278,6 +278,14 @@ body.resizing iframe, body.resizing .CodeMirror { pointer-events: none; }
 .paper .mermaid-diagram[style] svg { width: var(--mermaid-width); max-width: 100% !important; }
 .paper .mermaid-diagram .warning { text-align: left; white-space: pre-wrap; font: 12px/1.4 var(--mono); }
 .paper .warning { color: #c4302b; }
+/* ::: left, ::: center, and ::: right align text, pictures, diagrams, and tables. Code stays left. */
+.paper .div-left, .paper .div-left .mermaid-diagram { text-align: left; }
+.paper .div-center, .paper .div-center .mermaid-diagram { text-align: center; }
+.paper .div-right, .paper .div-right .mermaid-diagram { text-align: right; }
+.paper .div-left table { margin-left: 0; margin-right: auto; }
+.paper .div-center table { margin-left: auto; margin-right: auto; }
+.paper .div-right table { margin-left: auto; margin-right: 0; }
+.paper .div-center pre.code, .paper .div-right pre.code { text-align: left; }
 .paper sup.fnref a { text-decoration: none; font-size: 0.75em; padding: 0 1px; }
 .paper .notes { font-size: 0.9em; margin-top: 1.4em; }
 .paper .notes-rule { width: 30%; margin: 0 0 0.8em; }

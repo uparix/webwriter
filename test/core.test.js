@@ -216,6 +216,14 @@ test('markup commands produce exactly the specified text and cursor', () => {
   assert.deepEqual(applyMarkup('footnote', 'A[^1]\n\n[^1]: x\n', 1, 1).text, 'A[^2][^1]\n\n[^1]: x\n\n[^2]: ');
   assert.deepEqual(applyMarkup('codeBlock', 'abc', 3, 3, { language: 'swift' }), { text: 'abc\n\n```swift\n\n```\n\n', anchor: 14, head: 14 });
   assert.deepEqual(applyMarkup('codeBlock', '', 0, 0), { text: '\n```\n\n```\n\n', anchor: 4, head: 4 });
+  assert.deepEqual(applyMarkup('center', 'One.\n\nTwo\nlines.\n\nThree.', 7, 7), { text: 'One.\n\n::: center\nTwo\nlines.\n:::\n\nThree.', anchor: 31, head: 31 });
+  assert.deepEqual(applyMarkup('center', 'A\n\n```mermaid\ngraph\n```\nB', 16, 16).text, 'A\n\n::: center\n```mermaid\ngraph\n```\n:::\n\nB');
+  assert.deepEqual(applyMarkup('center', 'x\nTitle\ny', 2, 8).text, 'x\n\n::: center\nTitle\n:::\n\ny');
+  assert.deepEqual(applyMarkup('center', 'A\n\n\nB', 2, 2), { text: 'A\n\n::: center\n\n:::\n\nB', anchor: 14, head: 14 });
+  assert.deepEqual(applyMarkup('center', '', 0, 0), { text: '::: center\n\n:::\n', anchor: 11, head: 11 });
+  assert.deepEqual(applyMarkup('left', 'One.\n\nTwo.', 7, 7), { text: 'One.\n\n::: left\nTwo.\n:::\n', anchor: 23, head: 23 });
+  assert.deepEqual(applyMarkup('right', '', 0, 0), { text: '::: right\n\n:::\n', anchor: 10, head: 10 });
+  assert.deepEqual(applyMarkup('right', 'x\n\n```mermaid\ngraph\n```', 0, 12).text, '::: right\nx\n\n```mermaid\ngraph\n```\n:::\n');
   assert.deepEqual(applyMarkup('picture', 'An x', 0, 4, { picturePath: 'images/my pic.jpg' }).text, '![An x](<images/my pic.jpg>){width=100%}');
   assert.equal(latestLanguage(['```js\nx\n```', '~~~\n```py\n~~~\n']), '');
   assert.equal(latestLanguage(['```js\nx\n```', 'no code']), 'js');

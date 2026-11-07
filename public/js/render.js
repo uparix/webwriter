@@ -450,12 +450,21 @@ const HR = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const QUOTE = /^ {0,3}> ?/;
 const LIST = /^( {0,3})([-*+]|\d{1,9}[.)])([ \t]+|$)/;
 const HTML_BLOCK = /^ {0,3}<(?:\/?[A-Za-z][A-Za-z0-9-]*(?:[\s/>]|$)|!--)/;
+// A Pandoc fenced div: `::: center` or `::: {.center}` opens one, a line of colons alone closes it.
+const DIV_OPEN = /^ {0,3}:{3,}[ \t]*(\{[^}]*\}|[^\s{}:]+)[ \t]*:*[ \t]*$/;
+const DIV_CLOSE = /^ {0,3}:{3,}[ \t]*$/;
 const TABLE_DELIMITER = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
 
 function startsBlock(text) {
-  if (fenceMark(text) || ATX.test(text) || HR.test(text) || QUOTE.test(text) || HTML_BLOCK.test(text)) return true;
+  if (fenceMark(text) || DIV_OPEN.test(text) || DIV_CLOSE.test(text) || ATX.test(text) || HR.test(text) || QUOTE.test(text) || HTML_BLOCK.test(text)) return true;
   const list = LIST.exec(text);
   return Boolean(list && list[3] !== '' && (!/\d/.test(list[2]) || /^1[.)]$/.test(list[2])));
+}
+
+/** The classes of a fenced div's attributes: `center` or `{.center #id key=value}`. */
+function divClasses(attributes) {
+  if (!attributes.startsWith('{')) return [attributes];
+  return attributes.slice(1, -1).split(/\s+/).filter((a) => a.startsWith('.')).map((a) => a.slice(1)).filter(Boolean);
 }
 
 /** Leading indentation in columns, with tabs to the next multiple of four. */
@@ -535,6 +544,32 @@ export class Renderer {
       const text = at(i);
       if (BLANK.test(text)) {
         i += 1;
+        continue;
+      }
+      const div = DIV_OPEN.exec(text);
+      if (div) {
+        // Divs nest; colons inside a code block close nothing. An unclosed div runs to the end.
+        let depth = 1;
+        let code = null;
+        let k = i + 1;
+        while (k < entries.length) {
+          const t = at(k);
+          const mark = fenceMark(t);
+          if (code) {
+            if (mark && fenceCloses(code, mark)) code = null;
+          } else if (mark) {
+            code = { char: mark.char, length: mark.length };
+          } else if (DIV_OPEN.test(t)) {
+            depth += 1;
+          } else if (DIV_CLOSE.test(t)) {
+            depth -= 1;
+            if (depth === 0) break;
+          }
+          k += 1;
+        }
+        const classes = divClasses(div[1]).map((c) => ` div-${esc(c)}`).join('');
+        html += `<div class="fenced-div${classes}"${lineAttr(i)}>${this.blocks(entries.slice(i + 1, k))}</div>`;
+        i = k + 1;
         continue;
       }
       const fence = fenceMark(text);

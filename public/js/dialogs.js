@@ -473,7 +473,7 @@ export function paletteSheet() {
   }, { className: 'palette-sheet' });
 }
 
-/** Help → Markup Reminder: the twelve commands and what each inserts, in a floating window. */
+/** Help → Markup Reminder: the fifteen commands and what each inserts, in a floating window. */
 export function showReminder() {
   const existing = document.getElementById('reminder');
   if (existing) {

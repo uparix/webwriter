@@ -61,3 +61,14 @@ test('underlined headings show at their depth, without Pandoc attributes', () =>
   assert.match(section, /<h4 class="h4"[^>]*><span data-o="\d+">Lower<\/span><\/h4>/);
   assert.match(render('Plain\n==='), /<h1 class="h1"/);
 });
+
+test('a fenced div such as ::: center wraps its blocks, nests, and ignores colons in code', () => {
+  const body = '::: center\nA **line**.\n\n```\n:::\n```\n\n::: {.center .note}\ninner\n:::\n:::\n\nAfter.';
+  const html = render(body);
+  assertSpansMatch(html, body);
+  const plain = html.replace(/<\/?span[^>]*>/g, '');
+  assert.match(plain, /^<div class="fenced-div div-center" data-line="0"><p data-line="1">A <strong>/);
+  assert.match(plain, /<code>:::\n<\/code><\/pre><div class="fenced-div div-center div-note" data-line="7"><p data-line="8">inner<\/p><\/div><\/div><p data-line="12">After/);
+  assert.match(render('::: right\nx\n:::'), /^<div class="fenced-div div-right" data-line="0">/);
+  assert.match(render('Text\n::: center\nopen').replace(/<\/?span[^>]*>/g, ''), /<p data-line="0">Text<\/p><div class="fenced-div div-center" data-line="1"><p data-line="2">open<\/p><\/div>/);
+});

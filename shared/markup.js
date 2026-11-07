@@ -1,4 +1,4 @@
-// The twelve markup commands, the smallest-edit diff, and find. Offsets are UTF-16, like the editor's.
+// The fifteen markup commands, the smallest-edit diff, and find. Offsets are UTF-16, like the editor's.
 import { fenceMark, fenceCloses } from './fences.js';
 
 export const COMMANDS = [
@@ -14,6 +14,9 @@ export const COMMANDS = [
   { id: 'quotation', name: 'Quotation', inserts: '> at the start of the current line' },
   { id: 'codeBlock', name: 'Code block', inserts: 'A fenced block around the selection, with a blank line before and after' },
   { id: 'footnote', name: 'Footnote', inserts: '[^n] at the cursor, and a matching definition at the end of the section' },
+  { id: 'left', name: 'Align Left', inserts: '::: left and ::: around the paragraph, picture, or diagram at the cursor' },
+  { id: 'center', name: 'Center', inserts: '::: center and ::: around the paragraph, picture, or diagram at the cursor' },
+  { id: 'right', name: 'Align Right', inserts: '::: right and ::: around the paragraph, picture, or diagram at the cursor' },
 ];
 
 /** The palette finds a command by its name, so "foot" reaches Footnote and "pic" reaches Picture. */
@@ -126,6 +129,86 @@ function picture(text, anchor, head, relative) {
   return { text: next, anchor: cursor, head: cursor };
 }
 
+/** The fenced code blocks of `lines` as [first, last] line numbers. An unclosed fence runs to the end. */
+function fencedRanges(lines) {
+  const ranges = [];
+  let open = null;
+  lines.forEach((line, n) => {
+    const mark = fenceMark(line);
+    if (!mark) return;
+    if (open) {
+      if (fenceCloses(open, mark)) {
+        ranges.push([open.first, n]);
+        open = null;
+      }
+      return;
+    }
+    open = { char: mark.char, length: mark.length, first: n };
+  });
+  if (open) ranges.push([open.first, lines.length - 1]);
+  return ranges;
+}
+
+/** What goes after a closing `:::` so a blank line follows it, or a line end at the end of the text. */
+function trailing(after) {
+  if (after.startsWith('\n\n')) return '';
+  return after === '' || after.startsWith('\n') ? '\n' : '\n\n';
+}
+
+/**
+ * Wraps whole lines in a Pandoc fenced div, such as `::: center` … `:::`, set off by blank lines. With a
+ * selection, the lines it touches. Without one, the block at the cursor: the paragraph, or the whole
+ * fenced block, such as a Mermaid diagram. On a blank line, an empty div with the cursor inside.
+ */
+function align(text, anchor, head, side) {
+  const opening = `::: ${side}\n`;
+  const { start, end } = span(text, anchor, head);
+  const lines = text.split('\n');
+  const starts = [];
+  let offset = 0;
+  for (const line of lines) {
+    starts.push(offset);
+    offset += line.length + 1;
+  }
+  const lineAt = (index) => {
+    let n = 0;
+    while (n + 1 < starts.length && starts[n + 1] <= index) n += 1;
+    return n;
+  };
+  const blank = (n) => /^[ \t]*$/.test(lines[n]);
+  let first = lineAt(start);
+  // A selection that ends at the start of a line leaves that line out.
+  let last = end > start && end === starts[lineAt(end)] ? lineAt(end) - 1 : lineAt(end);
+  if (last < first) last = first;
+  const fences = fencedRanges(lines);
+  const fenceOf = (n) => fences.find(([a, b]) => a <= n && n <= b);
+  const fenceFirst = fenceOf(first);
+  const fenceLast = fenceOf(last);
+  if (fenceFirst) first = fenceFirst[0];
+  if (fenceLast) last = fenceLast[1];
+  if (start === end && !fenceFirst) {
+    if (blank(first)) {
+      const before = text.slice(0, starts[first]);
+      const after = text.slice(starts[first] + lines[first].length);
+      const lead = before === '' || before.endsWith('\n\n') ? '' : '\n';
+      const next = before + lead + opening + '\n:::' + trailing(after) + after;
+      const cursor = before.length + lead.length + opening.length;
+      return { text: next, anchor: cursor, head: cursor };
+    }
+    while (first > 0 && !blank(first - 1) && !fenceOf(first - 1)) first -= 1;
+    while (last + 1 < lines.length && !blank(last + 1) && !fenceOf(last + 1)) last += 1;
+  }
+  const from = starts[first];
+  const to = starts[last] + lines[last].length;
+  const before = text.slice(0, from);
+  const after = text.slice(to);
+  const lead = before === '' ? '' : before.endsWith('\n\n') ? '' : '\n';
+  const block = `${opening}${text.slice(from, to)}\n:::`;
+  const next = before + lead + block + trailing(after) + after;
+  const cursor = before.length + lead.length + block.length;
+  return { text: next, anchor: cursor, head: cursor };
+}
+
 /** Apply a command. Returns the new text and selection { text, anchor, head }. */
 export function applyMarkup(command, text, anchor, head, { language = '', picturePath = '' } = {}) {
   switch (command) {
@@ -143,6 +226,9 @@ export function applyMarkup(command, text, anchor, head, { language = '', pictur
     case 'quotation': return prefixLine(text, anchor, head, '> ');
     case 'codeBlock': return codeBlock(text, anchor, head, language);
     case 'footnote': return footnote(text, anchor, head);
+    case 'left':
+    case 'center':
+    case 'right': return align(text, anchor, head, command);
     default: return { text, anchor, head };
   }
 }

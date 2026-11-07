@@ -12,6 +12,13 @@ import { replaceMermaid } from '../../shared/mermaid.js';
 const TAG_FILTER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tags.lua');
 /** Writes page breaks and chapter numbers as Word page breaks and paragraphs. */
 const BREAK_FILTER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'breaks.lua');
+/** Gives `::: left`, `::: center`, and `::: right` divs their paragraph styles. */
+const ALIGN_FILTER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'align.lua');
+/** Run on the written file: makes those paragraph styles aligned. */
+const ALIGN_STYLES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'align-styles.lua');
+
+/** A line such as `::: right` or `::: {.right}` opens an aligned div. */
+const ALIGN_DIV = /^ {0,3}:{3,}[ \t]*(?:(?:left|center|right)|\{[^}]*\.(?:left|center|right)(?![\w-])[^}]*\})[ \t]*:*[ \t]*$/m;
 
 export const NOT_INSTALLED = 'Pandoc is not installed. Install it, for example with `brew install pandoc`, and export again.';
 
@@ -35,14 +42,10 @@ export function pandocExecutable(env = process.env) {
   return null;
 }
 
-/** Convert Markdown to a Word file. Pandoc runs in the book folder, so picture paths resolve. */
-export function docx(markdown, output, resourceDirectory) {
-  const pandoc = pandocExecutable();
-  if (!pandoc) return Promise.reject(new Error(NOT_INSTALLED));
+/** Run Pandoc with `args`, writing `input` to it. Pandoc runs in `cwd`, so picture paths resolve. */
+function runPandoc(pandoc, args, cwd, input = '') {
   return new Promise((resolve, reject) => {
-    const child = spawn(pandoc, ['--from=markdown', '--to=docx', `--lua-filter=${TAG_FILTER}`, `--lua-filter=${BREAK_FILTER}`, '-o', output], {
-      cwd: resourceDirectory, stdio: ['pipe', 'ignore', 'pipe'],
-    });
+    const child = spawn(pandoc, args, { cwd, stdio: ['pipe', 'ignore', 'pipe'] });
     let errors = '';
     child.stderr.on('data', (chunk) => { errors += chunk; });
     child.on('error', reject);
@@ -50,8 +53,17 @@ export function docx(markdown, output, resourceDirectory) {
       if (code === 0) resolve();
       else reject(new Error(errors.trim() || 'Pandoc failed.'));
     });
-    child.stdin.end(markdown);
+    child.stdin.end(input);
   });
+}
+
+/** Convert Markdown to a Word file. Pandoc runs in the book folder, so picture paths resolve. */
+export async function docx(markdown, output, resourceDirectory) {
+  const pandoc = pandocExecutable();
+  if (!pandoc) throw new Error(NOT_INSTALLED);
+  const filters = [TAG_FILTER, BREAK_FILTER, ALIGN_FILTER].map((filter) => `--lua-filter=${filter}`);
+  await runPandoc(pandoc, ['--from=markdown', '--to=docx', ...filters, '-o', output], resourceDirectory, markdown);
+  if (ALIGN_DIV.test(markdown)) await runPandoc(pandoc, ['lua', ALIGN_STYLES, path.resolve(resourceDirectory, output)], resourceDirectory);
 }
 
 /** Pandoc knows no Mermaid, so the page draws each diagram as a PNG: 96 pixels to the inch. */

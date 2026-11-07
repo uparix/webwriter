@@ -9,7 +9,7 @@ Recorded so this spec does not quietly grow back into Scrivener.
 
 - Corkboard, index cards, and a second layout of the same tree
 - Commands that rebuild a section, including renumbering footnotes already in the file
-- A menu or reminder for Pandoc constructs beyond the twelve markup commands
+- A menu or reminder for Pandoc constructs beyond the fifteen markup commands
 - Compile presets, separators, and placeholders
 - Custom metadata fields beyond the six in the header
 - A research bin of PDFs and clippings

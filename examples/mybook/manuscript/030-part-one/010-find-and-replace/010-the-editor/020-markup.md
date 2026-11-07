@@ -6,7 +6,7 @@ status: revise
 role: body
 unit: section
 ---
-The **Markup** menu and the command palette (⌘K) insert the twelve constructs. Here is each one in use:
+The **Markup** menu and the command palette (⌘K) insert the fifteen constructs. Here is each one in use, except alignment, which has a page of its own in Part Two:
 
 *Emphasis*, **strong**, and `inline code` wrap a selection. A [link](https://pandoc.org) wraps the selected words.
 

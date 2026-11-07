@@ -419,3 +419,9 @@ body.no-book #sidebar, body.no-book #sidebar-split { display: none; }
 .tag-color-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .tag-color-name .tag { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .tag-count { color: var(--secondary); font-size: 11px; white-space: nowrap; }
+
+/* draw.io, full-window over the app while a diagram is edited */
+.diagram-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 300; display: flex; flex-direction: column; }
+.diagram-frame { flex: 1; width: 100%; border: none; background: #fff; }
+.diagram-status { padding: 10px 16px; color: var(--secondary); display: flex; gap: 12px; align-items: center; }
+.paper img.picture[data-path$=".drawio.svg"] { cursor: default; }

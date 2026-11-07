@@ -5,12 +5,27 @@ import { EditorController } from './editor.js';
 import { RenderedView } from './rendered.js';
 import { Outline } from './outline.js';
 import { CommentsPanel, MarkerLayer } from './comments-ui.js';
-import { renderBook, renderGroup, renderSection, setTagDefinitions } from './render.js';
+import { renderBook, renderGroup, renderSection, setTagDefinitions, setPictureVersion, bookPath } from './render.js';
+import { editDiagram, isDiagramPath } from './diagram.js';
 import {
   h, beep, sheet, alertSheet, confirmSheet, chooseSheet, titleSheet, commentSheet, browseSheet, paletteSheet,
   showReminder, showMenu, closeMenu, showPopover, toast, shortcutLabel, sheetIsOpen, tagSheet, tagColorsSheet,
 } from './dialogs.js';
-import { api } from './api.js';
+
+/** The diagram path a picture mark under the cursor points at, such as `images/x.drawio.svg`, or null. */
+function diagramAtCursor() {
+  if (model.openNodeID == null) return null;
+  const { head } = model.editor.selection;
+  const text = model.buffer;
+  const lineStart = text.lastIndexOf('\n', head - 1) + 1;
+  const lineEnd = text.indexOf('\n', head) < 0 ? text.length : text.indexOf('\n', head);
+  for (const m of text.slice(lineStart, lineEnd).matchAll(/!\[[^\]]*\]\(<?([^)>]+)>?\)/g)) {
+    const at = lineStart + m.index;
+    if (head >= at && head <= at + m[0].length && isDiagramPath(m[1])) return bookPath(m[1]);
+  }
+  return null;
+}
+import { api, report } from './api.js';
 import { COMMANDS } from '/shared/markup.js';
 import { TABLE_COMMANDS } from '/shared/table.js';
 import { TAG_COLOR_NAMES } from '/shared/tags.js';
@@ -30,6 +45,8 @@ const ui = {
   askTitle: (kind) => titleSheet(kind),
   askComment: (draft, defaults) => commentSheet(draft, defaults),
   askTag: (options) => tagSheet(options),
+  askDiagramName: () => titleSheet('diagram', 'New Diagram'),
+  editDiagram: (options) => editDiagram({ drawioURL: model.drawioURL, ...options }),
   showTagColors() {
     if (!model.book) return;
     tagColorsSheet({ tags: model.allTags(), colorOf: (name) => model.tagColorOf(name), setColor: (name, color) => model.setTagColor(name, color) });
@@ -64,9 +81,11 @@ const ui = {
   /** Add Comment when text is selected, and the table commands when the cursor is in a table. */
   editorContextMenu(event) {
     const inTable = model.cursorInTable();
-    if (!model.reviewSelection && !inTable) return;
+    const diagram = diagramAtCursor();
+    if (!model.reviewSelection && !inTable && !diagram) return;
     event.preventDefault();
     const items = [];
+    if (diagram) items.push({ label: 'Edit Diagram…', action: () => model.editDiagramAt(diagram) }, '-');
     if (model.reviewSelection) items.push({ label: 'Add Comment…', shortcut: '⌃⌘M', action: () => model.requestComment() }, '-');
     if (inTable) items.push(...tableItems((id) => model.apply(id), { insert: false }), '-');
     items.push({ label: 'Copy', enabled: Boolean(model.reviewSelection), action: () => document.execCommand('copy') });
@@ -79,6 +98,9 @@ const ui = {
     const section = table?.closest('section[data-node]');
     const items = [];
     if (model.reviewSelection) items.push({ label: 'Add Comment…', shortcut: '⌃⌘M', action: () => model.requestComment() }, '-');
+    const picture = event.target.closest?.('img.picture');
+    const diagram = picture && bookPath(picture.dataset.path);
+    if (diagram && isDiagramPath(diagram)) items.push({ label: 'Edit Diagram…', action: () => model.editDiagramAt(diagram) }, '-');
     const pill = event.target.closest?.('.tag');
     if (pill) {
       const name = pill.dataset.tag;
@@ -136,6 +158,12 @@ function editorTableItems() {
   }));
 }
 
+// Errors in the page go to the server's output too, so they can be found without the browser's tools.
+window.addEventListener('error', (e) => report(`error: ${e.message} at ${e.filename}:${e.lineno}`));
+window.addEventListener('unhandledrejection', (e) => report(`unhandled: ${e.reason?.stack || e.reason}`));
+
+report(`page: started (${navigator.userAgent})`);
+
 const model = new BookModel(ui);
 window.webwriter = model;
 
@@ -192,6 +220,7 @@ const MENUS = [
     '-',
     { label: 'Tag…', shortcut: '⌥⌘T', keys: ['mod+alt+KeyT'], enabled: has.node, action: () => model.apply('tag') },
     { label: 'Tag Colors…', enabled: has.book, action: () => ui.showTagColors() },
+    { label: 'Insert Diagram…', enabled: has.node, action: () => model.apply('diagram') },
     '-',
     { label: 'Table', enabled: has.node, submenu: () => editorTableItems() },
     '-',
@@ -419,12 +448,14 @@ const TABLE_ICON = '<svg class="bar-icon" viewBox="0 0 16 16" aria-hidden="true"
 
 const TAG_ICON = '<svg class="bar-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.6 1.8H13a1.2 1.2 0 0 1 1.2 1.2v4.4a1 1 0 0 1-.3.7l-6.3 6.3a1 1 0 0 1-1.4 0L1.6 9.8a1 1 0 0 1 0-1.4l6.3-6.3a1 1 0 0 1 .7-.3z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="11" cy="5" r="1.2" fill="currentColor"/></svg>';
 
+const DIAGRAM_ICON = '<svg class="bar-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="3.5" rx=".8" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="11" width="5" height="3.5" rx=".8" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="9.5" y="11" width="5" height="3.5" rx=".8" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3M4 11V8h8v3" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>';
+
 const BAR_GROUPS = [
   [['strong', '<b>B</b>'], ['emphasis', '<i>I</i>'], ['inlineCode', '<span class="mono">&lt;/&gt;</span>']],
   [['subsection', 'H1'], ['lowerSubsection', 'H2']],
   [['bullet', '•≡'], ['numbered', '1.'], ['quotation', '❝']],
   [['link', '🔗'], ['picture', '🖼'], ['codeBlock', '<span class="mono">{ }</span>'], ['footnote', 'x¹']],
-  [['tag', TAG_ICON], ['insertTable', TABLE_ICON], ['tableMenu', '▾']],
+  [['tag', TAG_ICON], ['diagram', DIAGRAM_ICON], ['insertTable', TABLE_ICON], ['tableMenu', '▾']],
 ];
 
 function buildMarkupBar() {
@@ -432,6 +463,14 @@ function buildMarkupBar() {
   const groups = BAR_GROUPS.map((group) => {
     const el = h('div', { class: 'bar-group' });
     for (const [id, label] of group) {
+      if (id === 'diagram') {
+        const button = h('button', { class: 'bar-button', 'data-command': id, title: 'Insert Diagram\nA new diagram drawn in draw.io, saved in images/' });
+        button.innerHTML = label;
+        button.addEventListener('mousedown', (e) => e.preventDefault());
+        button.addEventListener('click', () => model.apply('diagram'));
+        el.append(button);
+        continue;
+      }
       if (id === 'tag') {
         const button = h('button', { class: 'bar-button', 'data-command': id, title: `Tag (${shortcutLabel('⌥⌘T')})\n[name]{.tag}, a colored tag, at the cursor` });
         button.innerHTML = label;
@@ -479,6 +518,7 @@ function buildMarkupBar() {
       for (const b of g.children) {
         const command = COMMANDS.find((c) => c.id === b.dataset.command);
         if (command) items.push({ label: command.name, enabled: has.node, action: () => model.apply(command.id) });
+        else if (b.dataset.command === 'diagram') items.push({ label: 'Insert Diagram…', enabled: has.node, action: () => model.apply('diagram') });
         else if (b.dataset.command === 'tag') items.push({ label: 'Tag…', enabled: has.node, action: () => model.apply('tag') });
         else if (b.dataset.command === 'insertTable') items.push({ label: 'Insert Table', enabled: has.node, action: () => model.apply('insertTable') });
         else items.push({ label: 'Table', enabled: has.node, submenu: editorTableItems() });
@@ -672,6 +712,10 @@ model.on((flags) => {
     commentsPanel.renderBar();
     updateSelectionColor();
   }
+  if (flags.has('pictures')) {
+    setPictureVersion(model.pictureVersion);
+    renderDetail();
+  }
   if (flags.has('tags')) {
     setTagDefinitions(model.tags);
     editor.retag();
@@ -808,6 +852,13 @@ buildForm();
 buildMarkupBar();
 buildFindBar();
 $('empty-trash-bar').addEventListener('click', () => model.emptyTrash());
+$('rendered').addEventListener('dblclick', (e) => {
+  const picture = e.target.closest('img.picture');
+  const diagram = picture && bookPath(picture.dataset.path);
+  if (!diagram || !isDiagramPath(diagram)) return;
+  e.preventDefault();
+  model.editDiagramAt(diagram);
+});
 $('form').style.height = `${sizes.form}px`;
 applyEditorSplit();
 updateSelectionColor();

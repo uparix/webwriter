@@ -24,6 +24,7 @@ folder with no manuscript becomes an empty book. Closing the last window stops t
 | `--port N` | Listen on port N. |
 | `--no-open` | Do not open a window. |
 | `--keep-running` | Keep running after the last window closes. |
+| `--drawio-url URL` | The draw.io editor for diagrams (default: the copy in `vendor/drawio/`, else `https://embed.diagrams.net/`). |
 
 `npm link` installs a `webwriter` command.
 
@@ -86,6 +87,32 @@ has neither gets a color picked from its name. Markup → Tag… (⌥⌘T), the 
 bar, and the palette insert a tag, with the book's tags to choose from. Markup → Tag Colors…, or
 right-clicking a tag in the preview, changes colors. Changes to `tags.json` by other programs show
 within about a second, and a `tags.json` that cannot be read is never written over.
+
+## Diagrams
+
+Diagrams are drawn in [draw.io](https://www.drawio.com) and kept as editable SVG files in `images/`
+(`name.drawio.svg`): an SVG picture with the draw.io diagram stored inside it. The text refers to one
+like any picture, `![The book folder](images/book-folder.drawio.svg){width=90%}`, so it shows in the
+preview, the reading views, the PDF, and Word.
+
+- **Insert Diagram** (Markup menu, markup bar, palette) asks for a name and opens draw.io over the
+  window. The first save writes `images/<name>.drawio.svg` and puts the picture at the cursor.
+- **Edit Diagram…**, from right-clicking a diagram in the preview or a reading view, or from
+  right-clicking its picture mark in the editor, or double-clicking it, opens it in draw.io. Saving
+  writes the same file, and the views draw it again.
+- A diagram changed by another program, such as draw.io desktop or its VS Code extension, is drawn
+  again within about a second.
+
+The editor is draw.io itself, in its embed mode. draw.io's web app (a pinned release of
+`jgraph/drawio`, checked against its published SHA-256) is kept in the repository in `vendor/drawio/`,
+so nothing needs downloading, and Webwriter serves it at `/drawio/`. Diagrams are then edited from Webwriter's own address, so no
+browser setting or ad blocker treats draw.io as a third party, and it works without the internet.
+`npm run fetch-drawio` downloads it again if it is missing. Without it, Webwriter falls back to draw.io's
+site, `https://embed.diagrams.net/`; `--drawio-url` (or `WEBWRITER_DRAWIO_URL`) names another copy.
+
+When a diagram is saved, Webwriter keeps draw.io's SVG in its light colors (draw.io writes colors for
+both light and dark mode, and a browser in dark mode would draw it dark on the white page) and drops
+draw.io's "Text is not SVG" note, which only Word would show.
 
 ## Checking a book
 

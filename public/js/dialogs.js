@@ -6,7 +6,12 @@ import { COMMANDS, matchingCommands } from '/shared/markup.js';
 import { TABLE_COMMANDS } from '/shared/table.js';
 import { TAG_COMMANDS, TAG_COLORS, TAG_COLOR_NAMES, autoColor, cleanTagName } from '/shared/tags.js';
 
-const PALETTE = [...COMMANDS, ...TAG_COMMANDS, ...TABLE_COMMANDS];
+/** Insert Diagram, for the menu, the palette, and the reminder. */
+export const DIAGRAM_COMMANDS = [
+  { id: 'diagram', name: 'Insert Diagram', inserts: '![](images/name.drawio.svg){width=100%}, a new diagram drawn in draw.io' },
+];
+
+const PALETTE = [...COMMANDS, ...TAG_COMMANDS, ...DIAGRAM_COMMANDS, ...TABLE_COMMANDS];
 const capitalize = (s) => s[0].toUpperCase() + s.slice(1);
 
 export const h = (tag, attrs = {}, ...children) => {
@@ -139,8 +144,8 @@ export function chooseSheet({ title, message, buttons: labels }) {
   ]);
 }
 
-/** New Text / New Folder: ask for a title. Create is disabled while the title is blank. */
-export function titleSheet(kind) {
+/** New Text / New Folder / New Diagram: ask for a title. Create is disabled while the title is blank. */
+export function titleSheet(kind, heading = kind === 'group' ? 'New Folder' : 'New Text') {
   return sheet((close) => {
     const input = h('input', { type: 'text', placeholder: 'Title', autofocus: true, 'aria-label': 'Title' });
     const create = h('button', { class: 'primary', disabled: true, onclick: () => close(input.value) }, 'Create');
@@ -149,7 +154,7 @@ export function titleSheet(kind) {
       if (e.key === 'Enter' && input.value.trim()) close(input.value);
     });
     return [
-      h('h2', { text: kind === 'group' ? 'New Folder' : 'New Text' }),
+      h('h2', { text: heading }),
       input,
       buttons(h('button', { onclick: () => close(null) }, 'Cancel'), create),
     ];
@@ -475,8 +480,8 @@ export function showReminder() {
         ...TABLE_COMMANDS.map((c) => [c.name, c.inserts]),
       ].map(([name, what]) => h('tr', {}, h('td', { text: name }), h('td', { text: what }))))),
     h('table', {},
-      h('thead', {}, h('tr', {}, h('th', { text: 'Tags' }), h('th', { text: 'What it inserts' }))),
-      h('tbody', {}, TAG_COMMANDS.map((c) => h('tr', {}, h('td', { text: c.name }), h('td', {}, h('code', { text: c.inserts })))))));
+      h('thead', {}, h('tr', {}, h('th', { text: 'Tags and diagrams' }), h('th', { text: 'What it inserts' }))),
+      h('tbody', {}, [...TAG_COMMANDS, ...DIAGRAM_COMMANDS].map((c) => h('tr', {}, h('td', { text: c.name }), h('td', {}, h('code', { text: c.inserts })))))));
   let drag = null;
   panel.firstChild.addEventListener('mousedown', (e) => {
     const rect = panel.getBoundingClientRect();

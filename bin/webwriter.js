@@ -17,6 +17,8 @@ Options:
   --port N         Listen on port N (default 4848, or the next free port).
   --no-open        Do not open a browser window.
   --keep-running   Keep the server running after the last window closes.
+  --drawio-url URL The draw.io editor for diagrams (default: the copy npm install puts in
+                   vendor/drawio, else https://embed.diagrams.net/).
   -h, --help       Show this help.`;
 
 const args = process.argv.slice(2);
@@ -36,6 +38,7 @@ let port = Number(process.env.WEBWRITER_PORT) || 4848;
 let fixedPort = Boolean(process.env.WEBWRITER_PORT);
 let openBrowser = true;
 let keepRunning = false;
+let drawioURL;
 for (let i = 0; i < args.length; i += 1) {
   const arg = args[i];
   if (arg === '-h' || arg === '--help') {
@@ -46,6 +49,7 @@ for (let i = 0; i < args.length; i += 1) {
     fixedPort = true;
   } else if (arg === '--no-open') openBrowser = false;
   else if (arg === '--keep-running') keepRunning = true;
+  else if (arg === '--drawio-url') drawioURL = args[++i];
   else if (arg.startsWith('-')) {
     console.error(`Unknown option ${arg}\n\n${HELP}`);
     process.exit(2);
@@ -60,6 +64,7 @@ if (folder && !fs.existsSync(folder)) {
 const { server } = createServer({
   book: folder,
   quitWhenClosed: !keepRunning && openBrowser,
+  ...(drawioURL ? { drawioURL } : {}),
   log: (message) => console.log(message),
 });
 

@@ -11,7 +11,8 @@ import {
 } from './bookstore.js';
 import { serializeSection } from './header.js';
 import { loadComments, saveComments } from './commentfile.js';
-import { placePicture, storeUpload, isPicture } from './pictures.js';
+import { placePicture, storeUpload, isPicture, uniqueName, PICTURE_DIR } from './pictures.js';
+import { slugify } from './naming.js';
 import { writeChapters } from './pandoc.js';
 import { Preferences } from './prefs.js';
 import { FolderWatcher, relevantChange } from './watcher.js';
@@ -31,6 +32,7 @@ const STATIC = {
   '/js/': path.join(appRoot, 'public', 'js'),
   '/shared/': path.join(appRoot, 'shared'),
   '/vendor/codemirror/': path.join(appRoot, 'node_modules', 'codemirror'),
+  '/drawio/': path.join(appRoot, 'vendor', 'drawio'),
 };
 const PAGES = {
   '/': path.join(appRoot, 'public', 'index.html'),
@@ -44,6 +46,9 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.tif': 'image/tiff', '.tiff': 'image/tiff',
   '.heic': 'image/heic', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8',
+  '.ico': 'image/x-icon', '.xml': 'application/xml; charset=utf-8', '.txt': 'text/plain; charset=utf-8',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.map': 'application/json',
+  '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.mp4': 'video/mp4',
 };
 
 class HttpError extends Error {
@@ -61,7 +66,20 @@ function serializeNode(node) {
   };
 }
 
-export function createServer({ book = null, prefs = new Preferences(), remember = true, quitWhenClosed = true, log = () => {} } = {}) {
+/**
+ * draw.io in embed mode: the copy `npm run fetch-drawio` puts in vendor/drawio, served from Webwriter's
+ * own address, or else draw.io's site. `--drawio-url` or WEBWRITER_DRAWIO_URL names another.
+ */
+export const DEFAULT_DRAWIO_URL = fs.existsSync(path.join(appRoot, 'vendor', 'drawio', 'index.html'))
+  ? '/drawio/index.html'
+  : 'https://embed.diagrams.net/';
+
+export function createServer({
+  book = null, prefs = new Preferences(), remember = true, quitWhenClosed = true, log = () => {},
+  drawioURL = process.env.WEBWRITER_DRAWIO_URL || DEFAULT_DRAWIO_URL,
+} = {}) {
+  // A new id for every start. A window that reconnects to a different one reloads, so it never runs old code.
+  const bootID = Math.random().toString(36).slice(2);
   const state = { root: null, watcher: null, clients: new Set(), quitTimer: null, everConnected: false };
 
   function open(folder, { rememberIt = remember } = {}) {
@@ -76,7 +94,8 @@ export function createServer({ book = null, prefs = new Preferences(), remember 
         const manuscript = kinds.some((k) => k.manuscript);
         const comments = kinds.some((k) => k.comments);
         const tags = kinds.some((k) => k.tags);
-        if (manuscript || comments || tags) broadcast({ type: 'changed', manuscript, comments, tags });
+        const pictures = kinds.some((k) => k.pictures);
+        if (manuscript || comments || tags || pictures) broadcast({ type: 'changed', manuscript, comments, tags, pictures });
       });
     } catch (error) {
       log(`Cannot watch ${root}: ${error.message}`);
@@ -110,7 +129,7 @@ export function createServer({ book = null, prefs = new Preferences(), remember 
   const api = {
     'GET /api/state': () => ({
       book: state.root, recent: prefs.recentBooks, author: prefs.reviewAuthor, color: prefs.reviewColor,
-      home: os.homedir(), platform: process.platform, sep: path.sep,
+      home: os.homedir(), platform: process.platform, sep: path.sep, drawioURL,
     }),
     'POST /api/open': ({ body }) => ({ root: open(body.path) }),
     'POST /api/recent/clear': () => {
@@ -215,6 +234,11 @@ export function createServer({ book = null, prefs = new Preferences(), remember 
       }
       return { tags };
     },
+    /** Notes and errors from the page, written to the server's output, where they can be looked up. */
+    'POST /api/note': ({ body }) => {
+      log(`[page] ${String(body.message || '').slice(0, 2000)}`);
+      return { ok: true };
+    },
     'GET /api/browse': ({ query }) => browse(query.get('path') || state.root || os.homedir(), query.get('files')),
     'POST /api/mkdir': ({ body }) => {
       const dir = path.resolve(String(body.path || ''));
@@ -223,6 +247,31 @@ export function createServer({ book = null, prefs = new Preferences(), remember 
     },
     'POST /api/picture/place': ({ body }) => ({ path: placePicture(path.resolve(String(body.source || '')), requireBook()) }),
     'POST /api/picture/upload': ({ query, raw }) => ({ path: storeUpload(query.get('name') || 'picture', raw, requireBook()) }),
+    /** A free name for a new diagram, `images/<slug>.drawio.svg`. Nothing is written until it is saved. */
+    'POST /api/diagram/new': ({ body }) => {
+      const root = requireBook();
+      const images = path.join(root, PICTURE_DIR);
+      const taken = new Set(fsu.isDirectory(images) ? fsu.readDir(images).map((e) => e.name) : []);
+      const stem = slugify(String(body.name || 'diagram'));
+      let name = `${stem}.drawio.svg`;
+      for (let n = 2; taken.has(name); n += 1) name = `${stem}-${n}.drawio.svg`;
+      return { path: `${PICTURE_DIR}/${name}` };
+    },
+    /** Write a diagram saved in draw.io: an SVG under images/, written atomically. */
+    'POST /api/diagram/write': ({ query, raw }) => {
+      const root = requireBook();
+      const relative = String(query.get('path') || '');
+      const file = path.resolve(root, relative);
+      const images = path.join(root, PICTURE_DIR);
+      if (relative.split('/').includes('..') || !fsu.isInside(images, file) || !file.toLowerCase().endsWith('.svg')) {
+        throw new HttpError(400, 'A diagram is saved as an .svg file in the images folder.');
+      }
+      const text = raw.toString('utf8');
+      if (!/<svg[\s>]/.test(text)) throw new HttpError(400, 'The diagram did not arrive as an SVG.');
+      fsu.makeDirectory(path.dirname(file));
+      if (fsu.tryReadText(file) !== text) fsu.writeText(file, text);
+      return { path: relative };
+    },
     'POST /api/export/manuscript': ({ body }) => {
       const book = loadBook(requireBook());
       const file = path.resolve(String(body.file || ''));
@@ -303,7 +352,7 @@ export function createServer({ book = null, prefs = new Preferences(), remember 
 
   function events(req, res) {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-    res.write(`data: ${JSON.stringify({ type: 'hello', root: state.root })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'hello', root: state.root, boot: bootID })}\n\n`);
     state.clients.add(res);
     state.everConnected = true;
     clearTimeout(state.quitTimer);
@@ -381,6 +430,12 @@ export function createServer({ book = null, prefs = new Preferences(), remember 
     if (file) return serveFile(res, file);
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');
+  });
+
+  // Closing the server stops watching the book, so nothing keeps the process alive.
+  server.on('close', () => {
+    state.watcher?.stop();
+    clearTimeout(state.quitTimer);
   });
 
   if (book) open(book);

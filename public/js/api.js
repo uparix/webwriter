@@ -20,3 +20,8 @@ export const api = {
   put: (url, body = {}) => request('PUT', url, body),
   upload: (url, blob) => request('POST', url, blob, true),
 };
+
+/** A note for the server's output, such as an error in the page. Never throws. */
+export function report(message) {
+  request('POST', '/api/note', { message }).catch(() => {});
+}

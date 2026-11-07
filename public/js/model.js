@@ -1,6 +1,6 @@
 // The open book and everything the window shows about it. A port of Bookwriter's BookModel.
 // The server reads and writes the folder; this model holds the editor buffer and decides what to save.
-import { api } from './api.js';
+import { api, report } from './api.js';
 import {
   find, walk, isTrash, isGroup, manuscript, manuscriptInOrder, countWords, wordCount, TRASH_ID,
 } from '/shared/tree.js';
@@ -13,6 +13,7 @@ import {
 import { exportChapter, fileTitle, timestamped } from '/shared/export.js';
 import { TABLE_COMMANDS, editTable, findTable, leaveTable } from '/shared/table.js';
 import { tagsIn, tagColor, normalizeTag, tagMarkup, cleanTagName, colorValue } from '/shared/tags.js';
+import { diagramInSVG } from './diagram.js';
 
 const clone = (value) => structuredClone(value);
 
@@ -68,6 +69,9 @@ export class BookModel {
     this.reviewSelection = null;
     this.pendingSelection = null;
 
+    /** Bumped when a picture changes on disk, so the views load it again. */
+    this.pictureVersion = 0;
+    this.drawioURL = 'https://embed.diagrams.net/';
     /** Tag colors from tags.json, by tag name. */
     this.tags = {};
 
@@ -106,6 +110,7 @@ export class BookModel {
     this.reviewAuthor = state.author;
     this.reviewColor = state.color;
     this.home = state.home;
+    this.drawioURL = state.drawioURL || this.drawioURL;
     if (state.book) await this.serial(() => this.loadOpened());
     this.emit('tree', 'selection', 'ui', 'comments');
     this.listen();
@@ -118,8 +123,15 @@ export class BookModel {
     source.onmessage = (message) => {
       const event = JSON.parse(message.data);
       if (event.type === 'hello') {
+        // Webwriter was started again, perhaps with new code: save what is typed and load the page again.
+        if (this.boot && event.boot !== this.boot) {
+          report('page: Webwriter was started again, reloading');
+          this.reloadForNewServer();
+          return;
+        }
+        this.boot = event.boot;
         // After a lost connection, changes may have been missed.
-        if (connectedBefore && this.book) this.diskDidChange({ manuscript: true, comments: true });
+        if (connectedBefore && this.book) this.diskDidChange({ manuscript: true, comments: true, tags: true, pictures: true });
         connectedBefore = true;
       } else if (event.type === 'changed') {
         this.diskDidChange(event);
@@ -127,6 +139,16 @@ export class BookModel {
         this.serial(() => this.loadOpened());
       }
     };
+  }
+
+  /** Save the typing and reload, unless a conflict waits for the writer, who then reloads by hand. */
+  async reloadForNewServer() {
+    if (this.diskConflict) {
+      this.ui.toast('Webwriter was started again. Choose a version in the bar above, then reload this window.');
+      return;
+    }
+    await this.save();
+    location.reload();
   }
 
   async openBook(path) {
@@ -456,6 +478,7 @@ export class BookModel {
   async apply(command) {
     if (!this.editor || !this.book || this.openNodeID == null) return;
     if (command === 'tag') return this.requestTag();
+    if (command === 'diagram') return this.insertDiagram();
     if (command === 'tagColors') return this.ui.showTagColors();
     if (TABLE_COMMANDS.some((c) => c.id === command)) {
       if (!this.tableCommand(command) && command !== 'insertTable' && !this.cursorInTable()) this.ui.beep();
@@ -476,6 +499,61 @@ export class BookModel {
     if (!this.showsMarkup) this.setShowsMarkup(true);
     const { anchor, head } = this.editor.selection;
     this.editor.replace(applyMarkup(command, this.buffer, anchor, head, { language, picturePath }));
+  }
+
+  // MARK: Diagrams
+
+  /** Pictures changed on disk: the views load them again. */
+  picturesChanged() {
+    this.pictureVersion += 1;
+    this.emit('pictures');
+  }
+
+  /** Draw a new diagram in draw.io. Its first save writes images/<name>.drawio.svg and puts it at the cursor. */
+  async insertDiagram() {
+    if (!this.editor || this.openNodeID == null || !this.book) return;
+    const name = await this.ui.askDiagramName();
+    report(`diagram: name ${JSON.stringify(name)}`);
+    if (!name || !name.trim()) return;
+    let path;
+    try {
+      ({ path } = await api.post('/api/diagram/new', { name: name.trim() }));
+    } catch (error) {
+      // Such as a window loaded before Webwriter was updated and started again.
+      this.ui.alert('The new diagram could not be started.', `${error.message}\n\nIf Webwriter was just started again, reload this window and try again.`);
+      return;
+    }
+    const nodeID = this.openNodeID;
+    const { anchor, head } = this.editor.selection;
+    let inserted = false;
+    await this.ui.editDiagram({
+      xml: null,
+      title: name.trim(),
+      save: async (svg) => {
+        await this.writeDiagram(path, svg);
+        if (inserted || this.openNodeID !== nodeID) return;
+        inserted = true;
+        if (!this.showsMarkup) this.setShowsMarkup(true);
+        this.editor.replace(applyMarkup('picture', this.editor.cm.getValue(), anchor, head, { picturePath: path }));
+      },
+    });
+  }
+
+  /** Edit the diagram at a book-relative path in draw.io, saving back to the same file. */
+  async editDiagramAt(path) {
+    const url = `/book-file/${path.split('/').map(encodeURIComponent).join('/')}?v=${Date.now()}`;
+    const response = await fetch(url, { cache: 'no-store' }).catch((error) => ({ ok: false, statusText: error.message }));
+    if (!response.ok) return this.ui.alert(`${path} could not be read.`, response.statusText || '');
+    const xml = diagramInSVG(await response.text());
+    if (!xml) {
+      return this.ui.alert(`${path} has no draw.io diagram inside it.`, 'Diagrams saved from draw.io as an editable SVG (.drawio.svg) can be edited here.');
+    }
+    await this.ui.editDiagram({ xml, title: path.split('/').pop(), save: (svg) => this.writeDiagram(path, svg) });
+  }
+
+  async writeDiagram(path, svg) {
+    await api.upload(`/api/diagram/write?path=${encodeURIComponent(path)}`, new Blob([svg], { type: 'image/svg+xml' }));
+    this.picturesChanged();
   }
 
   // MARK: Tags
@@ -873,6 +951,7 @@ export class BookModel {
       if (event.manuscript) await this.reloadIfChangedOutside();
       if (event.comments) await this.mergeCommentsFromDisk();
       if (event.tags) await this.loadTags();
+      if (event.pictures) this.picturesChanged();
     });
   }
 

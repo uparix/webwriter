@@ -16,6 +16,13 @@ export function setTagDefinitions(definitions) {
 
 export const getTagDefinitions = () => tagDefinitions;
 
+/** Bumped when a picture changes on disk, so the browser loads it again instead of its cached copy. */
+let pictureVersion = 0;
+
+export function setPictureVersion(version) {
+  pictureVersion = version;
+}
+
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /** Mapped text as HTML: runs copied from the body in offset-carrying spans, made-up text as is. */
@@ -74,7 +81,7 @@ function picture(source, attributes) {
   const relative = bookPath(source);
   if (!relative) return `<span class="warning">[picture: ${esc(source)}]</span>`;
   const width = widthPercent(attributes);
-  const url = '/book-file/' + relative.split('/').map(encodeURIComponent).join('/');
+  const url = `/book-file/${relative.split('/').map(encodeURIComponent).join('/')}${pictureVersion ? `?v=${pictureVersion}` : ''}`;
   return `<img class="picture" src="${url}" data-path="${esc(source)}" alt=""${width ? ` style="width:${width}%"` : ''}>`;
 }
 

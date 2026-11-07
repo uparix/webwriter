@@ -159,7 +159,7 @@ body.resizing iframe, body.resizing .CodeMirror { pointer-events: none; }
 #panes:not(.split) #render-pane { flex-basis: 100%; }
 #panes.split #render-pane { border-left: 1px solid var(--line); }
 
-#conflict-bar {
+#conflict-bar, #watch-bar {
   display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--warning-bg); border-bottom: 1px solid var(--warning-line);
 }
 .conflict-icon { font-size: 20px; color: #c27c00; }

@@ -14,7 +14,7 @@
     "postinstall": "node scripts/fetch-drawio.mjs --optional"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.15"
   },
   "license": "MIT OR Apache-2.0",
   "dependencies": {

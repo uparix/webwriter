@@ -4,8 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export class FolderWatcher {
-  /** `onChange` receives the changed paths, relative to the folder, with `/` separators. */
-  constructor(root, onChange, latency = 300) {
+  /**
+   * `onChange` receives the changed paths, relative to the folder, with `/` separators. When watching
+   * fails, such as when the folder is moved or the system has no watches left, it stops and `onError`
+   * receives the error.
+   */
+  constructor(root, onChange, latency = 300, onError = () => {}) {
     this.root = root;
     this.pending = new Set();
     this.timer = null;
@@ -19,7 +23,10 @@ export class FolderWatcher {
         onChange(paths);
       }, latency);
     });
-    this.watcher.on('error', () => this.stop());
+    this.watcher.on('error', (error) => {
+      this.stop();
+      onError(error);
+    });
   }
 
   stop() {

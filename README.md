@@ -7,7 +7,7 @@ and the rendered text.
 
 ## Running
 
-Needs Node.js 20 or later.
+Needs Node.js 22.15 or later.
 
 ```
 npm install
@@ -53,7 +53,13 @@ within about a second:
 - tag colors and pictures, diagrams among them, are drawn again;
 - unsaved typing is never overwritten. When the open text changed on disk too, a bar asks which
   version to keep, and nothing is written until the writer chooses;
+- comments saved while another program writes `comments.json` are merged with its changes, not
+  written over them;
 - a `comments.json` or `tags.json` that cannot be read is never written over.
+
+When the folder cannot be watched, such as after it was moved or when the system has no watches
+left, a bar says so. Webwriter tries again every few seconds and, once it can, reads the book again
+for the changes it missed.
 
 ## Tables
 
@@ -247,7 +253,9 @@ npm test
 ```
 
 The export tests in `test/core.test.js` load the two fixture books in `test/fixtures/` and require
-the export to match `*.expected.md` and `*.expected.txt` byte for byte.
+the export to match `*.expected.md` and `*.expected.txt` byte for byte. GitHub Actions runs the tests
+on every push, on Linux and macOS with Node.js 22 and 24 (`.github/workflows/test.yml`); the Word
+export tests are skipped there, as they need Pandoc.
 
 ## License
 

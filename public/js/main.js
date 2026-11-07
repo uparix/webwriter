@@ -637,6 +637,20 @@ function updateConflictBar() {
   );
 }
 
+/** While the server cannot watch the book folder, edits made by other programs do not show. */
+function updateWatchBar() {
+  const bar = $('watch-bar');
+  bar.hidden = !(model.watchProblem && model.book);
+  bar.textContent = '';
+  if (bar.hidden) return;
+  bar.append(
+    h('span', { class: 'conflict-icon', text: '⚠' }),
+    h('div', { class: 'conflict-text' },
+      h('strong', { text: 'Changes made by other programs are not shown.' }),
+      h('div', { text: `${model.watchProblem} It keeps trying, and shows the changes once it can.` })),
+  );
+}
+
 // MARK: The detail area
 
 /** What the detail shows for the selection, as §5.1 of the description says. */
@@ -740,6 +754,7 @@ model.on((flags) => {
     renderDetail();
   }
   if (flags.has('conflict') || flags.has('selection')) updateConflictBar();
+  if (flags.has('watching') || flags.has('tree')) updateWatchBar();
   if (flags.has('ui')) {
     $('comments-panel').hidden = !model.commentsPanelVisible || !model.book;
     $('comments-split').hidden = $('comments-panel').hidden;

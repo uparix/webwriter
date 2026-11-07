@@ -21,6 +21,7 @@ import { exportBook } from '../../shared/export.js';
 import { walk, isTrash } from '../../shared/tree.js';
 import { INDEX_BODY } from '../../shared/bookindex.js';
 import { TAGS_FILE, decodeTags, encodeTags } from '../../shared/tags.js';
+import { sameComments } from '../../shared/comments.js';
 
 /** The book's tag colors. A book without tags.json has none; one that cannot be read throws. */
 function loadTags(root) {
@@ -82,18 +83,29 @@ export const DEFAULT_DRAWIO_URL = fs.existsSync(path.join(appRoot, 'vendor', 'dr
 
 export function createServer({
   book = null, prefs = new Preferences(), remember = true, quitWhenClosed = true, log = () => {},
-  drawioURL = process.env.WEBWRITER_DRAWIO_URL || DEFAULT_DRAWIO_URL,
+  drawioURL = process.env.WEBWRITER_DRAWIO_URL || DEFAULT_DRAWIO_URL, watchRetry = 3000,
 } = {}) {
   // A new id for every start. A window that reconnects to a different one reloads, so it never runs old code.
   const bootID = Math.random().toString(36).slice(2);
-  const state = { root: null, watcher: null, clients: new Set(), quitTimer: null, everConnected: false };
+  const state = {
+    root: null, watcher: null, watchProblem: null, watchTimer: null, clients: new Set(), quitTimer: null, everConnected: false,
+  };
 
   function open(folder, { rememberIt = remember } = {}) {
     const root = path.resolve(folder.replace(/^~(?=$|\/)/, os.homedir()));
     if (!fsu.isDirectory(root)) throw new HttpError(400, `${root} is not a folder.`);
     loadBook(root); // Creates the manuscript and trash when missing, and converts book.yaml.
-    state.watcher?.stop();
+    stopWatching();
     state.root = root;
+    watch(root);
+    if (rememberIt) prefs.rememberBook(root);
+    broadcast({ type: 'opened', root });
+    broadcast({ type: 'watching', problem: state.watchProblem });
+    return root;
+  }
+
+  /** Follow the book folder. When that fails, the windows are told, and it is tried again until it works. */
+  function watch(root) {
     try {
       state.watcher = new FolderWatcher(root, (paths) => {
         const kinds = paths.map(relevantChange);
@@ -102,14 +114,40 @@ export function createServer({
         const tags = kinds.some((k) => k.tags);
         const pictures = kinds.some((k) => k.pictures);
         if (manuscript || comments || tags || pictures) broadcast({ type: 'changed', manuscript, comments, tags, pictures });
-      });
+      }, 300, (error) => watchFailed(root, error));
     } catch (error) {
-      log(`Cannot watch ${root}: ${error.message}`);
-      state.watcher = null;
+      watchFailed(root, error);
+      return;
     }
-    if (rememberIt) prefs.rememberBook(root);
-    broadcast({ type: 'opened', root });
-    return root;
+    if (state.watchProblem) {
+      log(`Following changes to ${root} again.`);
+      state.watchProblem = null;
+      broadcast({ type: 'watching', problem: null });
+      // Changes made while nothing was watching were missed.
+      broadcast({ type: 'changed', manuscript: true, comments: true, tags: true, pictures: true });
+    }
+  }
+
+  function watchFailed(root, error) {
+    if (state.root !== root) return;
+    state.watcher = null;
+    const problem = `Webwriter cannot watch the book folder. ${error.message}`;
+    if (state.watchProblem !== problem) {
+      log(`Cannot watch ${root}: ${error.message}`);
+      state.watchProblem = problem;
+      broadcast({ type: 'watching', problem });
+    }
+    clearTimeout(state.watchTimer);
+    state.watchTimer = setTimeout(() => {
+      if (state.root === root && !state.watcher) watch(root);
+    }, watchRetry);
+  }
+
+  function stopWatching() {
+    clearTimeout(state.watchTimer);
+    state.watcher?.stop();
+    state.watcher = null;
+    state.watchProblem = null;
   }
 
   function requireBook() {
@@ -232,8 +270,19 @@ export function createServer({
         return { error: error.message };
       }
     },
+    /** With `expected`, the comments the page last read: refused when another program wrote the file since. */
     'PUT /api/comments': ({ body }) => {
-      saveComments(requireBook(), Array.isArray(body.comments) ? body.comments : []);
+      const root = requireBook();
+      if (Array.isArray(body.expected)) {
+        let current;
+        try {
+          current = loadComments(root);
+        } catch {
+          return { conflict: true };
+        }
+        if (!sameComments(current, body.expected)) return { conflict: true };
+      }
+      saveComments(root, Array.isArray(body.comments) ? body.comments : []);
       return { ok: true };
     },
     'GET /api/tags': () => {
@@ -403,7 +452,9 @@ export function createServer({
   function events(req, res) {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     state.clients.add(res);
-    res.write(`data: ${JSON.stringify({ type: 'hello', root: state.root, boot: bootID, windows: state.clients.size })}\n\n`);
+    res.write(`data: ${JSON.stringify({
+      type: 'hello', root: state.root, boot: bootID, windows: state.clients.size, watchProblem: state.watchProblem,
+    })}\n\n`);
     state.everConnected = true;
     clearTimeout(state.quitTimer);
     const ping = setInterval(() => res.write(': ping\n\n'), 20000);
@@ -416,7 +467,7 @@ export function createServer({
           if (state.clients.size === 0) {
             log('The last Webwriter window was closed. Quitting.');
             server.close();
-            state.watcher?.stop();
+            stopWatching();
             process.exit(0);
           }
         }, 8000);
@@ -484,7 +535,7 @@ export function createServer({
 
   // Closing the server stops watching the book, so nothing keeps the process alive.
   server.on('close', () => {
-    state.watcher?.stop();
+    stopWatching();
     clearTimeout(state.quitTimer);
   });
 

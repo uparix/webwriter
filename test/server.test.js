@@ -10,10 +10,10 @@ import { makeHeader, serializeSection } from '../src/server/header.js';
 import { pandocExecutable } from '../src/server/pandoc.js';
 
 /** A server on a fresh book, on a free port, and a way to call it as the page does. */
-async function serve() {
+async function serve(options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-server-'));
   const prefs = new Preferences(path.join(root, '..', `${path.basename(root)}-prefs.json`));
-  const { server } = createServer({ book: root, prefs, quitWhenClosed: false });
+  const { server, state } = createServer({ book: root, prefs, quitWhenClosed: false, ...options });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const call = async (method, url, body, raw = false) => {
@@ -22,7 +22,50 @@ async function serve() {
     const response = await fetch(base + url, { method, headers, body: raw ? body : body === undefined ? undefined : JSON.stringify(body) });
     return { status: response.status, data: await response.json() };
   };
-  return { root, server, call };
+  return { root, server, state, call };
+}
+
+/** The server's change notices, as a window receives them. `next` waits for the first one that `matches`. */
+async function listen(server) {
+  const controller = new AbortController();
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/events`, { signal: controller.signal });
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const events = [];
+  let buffered = '';
+  let waiting = null;
+  (async () => {
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) return;
+        buffered += decoder.decode(value, { stream: true });
+        let end;
+        while ((end = buffered.indexOf('\n\n')) >= 0) {
+          const message = buffered.slice(0, end);
+          buffered = buffered.slice(end + 2);
+          if (message.startsWith('data: ')) events.push(JSON.parse(message.slice(6)));
+        }
+        waiting?.();
+      }
+    } catch {
+      // Aborted when the test is done.
+    }
+  })();
+  const next = async (matches, timeout = 5000) => {
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      const at = events.findIndex(matches);
+      if (at >= 0) return events.splice(0, at + 1).pop();
+      const left = deadline - Date.now();
+      if (left <= 0) throw new Error(`No matching event. Received: ${JSON.stringify(events)}`);
+      await new Promise((resolve) => {
+        waiting = resolve;
+        setTimeout(resolve, left);
+      });
+    }
+  };
+  return { next, close: () => controller.abort() };
 }
 
 test('diagrams are named in images/ and written there only', async () => {
@@ -159,6 +202,75 @@ test('the manuscript export writes the index out, with page breaks and chapter n
     assert.ok(markdown.includes('<p class="chapter-number">Chapter 2</p>'));
     assert.ok(markdown.includes('<div class="page-break"></div>'));
     assert.ok(markdown.endsWith('\n'));
+  } finally {
+    server.close();
+  }
+});
+
+test('a change another program makes in the book folder is announced to the windows', async () => {
+  const { root, server } = await serve();
+  const events = await listen(server);
+  try {
+    await events.next((e) => e.type === 'hello');
+    writePiece(root, '010-arrival.md', { id: 'arrival', title: 'Arrival' }, 'The ferry was late.\n');
+    await events.next((e) => e.type === 'changed' && e.manuscript);
+    fs.writeFileSync(path.join(root, 'comments.json'), '{ "comments" : [], "version" : 1 }\n');
+    await events.next((e) => e.type === 'changed' && e.comments);
+    fs.writeFileSync(path.join(root, 'tags.json'), '{ "tags" : { "draft" : "green" }, "version" : 1 }\n');
+    await events.next((e) => e.type === 'changed' && e.tags);
+    fs.mkdirSync(path.join(root, 'images'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'images', 'map.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    await events.next((e) => e.type === 'changed' && e.pictures);
+  } finally {
+    events.close();
+    server.close();
+  }
+});
+
+test('when watching the book fails, the windows are told, and it is tried again until it works', async () => {
+  const { server, state } = await serve({ watchRetry: 400 });
+  const first = await listen(server);
+  let second;
+  try {
+    assert.equal((await first.next((e) => e.type === 'hello')).watchProblem, null);
+    state.watcher.watcher.emit('error', new Error('no watches left'));
+    const failed = await first.next((e) => e.type === 'watching');
+    assert.match(failed.problem, /no watches left/);
+    // A window that opens meanwhile learns of it too.
+    second = await listen(server);
+    assert.match((await second.next((e) => e.type === 'hello')).watchProblem, /no watches left/);
+    // Watching again, and the windows read the book again for what they missed.
+    assert.equal((await first.next((e) => e.type === 'watching')).problem, null);
+    const changed = await first.next((e) => e.type === 'changed');
+    assert.deepEqual(changed, { type: 'changed', manuscript: true, comments: true, tags: true, pictures: true });
+    assert.ok(state.watcher);
+  } finally {
+    first.close();
+    second?.close();
+    server.close();
+  }
+});
+
+test('a comments save is refused when another program wrote comments.json since the page read it', async () => {
+  const { root, server, call } = await serve();
+  const comment = (id, text) => ({
+    author: 'Agent', color: 'blue', date: '2026-11-07T09:30:00Z', id, length: 0, nodeID: 'arrival',
+    quote: 'The ferry was late.', start: 0, text,
+  });
+  const onDisk = async () => (await call('GET', '/api/comments')).data.comments.map((c) => c.id);
+  try {
+    writePiece(root, '010-arrival.md', { id: 'arrival', title: 'Arrival' }, 'The ferry was late.\n');
+    assert.deepEqual((await call('PUT', '/api/comments', { comments: [comment('a', 'One')], expected: [] })).data, { ok: true });
+    const read = (await call('GET', '/api/comments')).data.comments;
+    // Another program adds a comment after the page read the file.
+    await call('PUT', '/api/comments', { comments: [...read, comment('b', 'Two')] });
+    assert.deepEqual((await call('PUT', '/api/comments', { comments: [comment('a', 'Changed')], expected: read })).data, { conflict: true });
+    assert.deepEqual((await call('PUT', '/api/comments', { comments: [], expected: read })).data, { conflict: true });
+    assert.deepEqual(await onDisk(), ['a', 'b']);
+    // Read again, the save goes through.
+    const fresh = (await call('GET', '/api/comments')).data.comments;
+    assert.deepEqual((await call('PUT', '/api/comments', { comments: [fresh[1]], expected: fresh })).data, { ok: true });
+    assert.deepEqual(await onDisk(), ['b']);
   } finally {
     server.close();
   }

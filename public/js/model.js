@@ -59,6 +59,8 @@ export class BookModel {
     this.showsMarkup = true;
     this.bookTitle = '';
     this.diskConflict = null;
+    /** Why the server cannot follow changes other programs make to the book, or null while it can. */
+    this.watchProblem = null;
     this.recent = [];
 
     this.comments = [];
@@ -135,6 +137,8 @@ export class BookModel {
           return;
         }
         this.boot = event.boot;
+        this.watchProblem = event.watchProblem ?? null;
+        this.emit('watching');
         // Each window holds a connection, and a browser opens at most six to one server. At six, saving and moving stall.
         if (event.windows >= TOO_MANY_WINDOWS) {
           this.ui.toast(`${event.windows} Webwriter windows are open. Close all but one, or saving and moving pieces may stop working.`);
@@ -144,6 +148,9 @@ export class BookModel {
         connectedBefore = true;
       } else if (event.type === 'changed') {
         this.diskDidChange(event);
+      } else if (event.type === 'watching') {
+        this.watchProblem = event.problem;
+        this.emit('watching');
       } else if (event.type === 'opened' && this.book?.root !== event.root) {
         this.serial(() => this.loadOpened());
       }
@@ -946,7 +953,7 @@ export class BookModel {
   }
 
   /** Write the comments if they changed, each with the text it now covers as its quote. Runs inside the queue. */
-  async saveComments() {
+  async saveComments(attempt = 0) {
     if (!this.commentsDirty || !this.commentsWritable || !this.book) return;
     // Another program may have written the file since it was read. Its changes are kept.
     // A file that is there but cannot be read may be halfway through being written: writing
@@ -965,7 +972,13 @@ export class BookModel {
       if (comment.start + comment.length <= body.length) comment.quote = body.substr(comment.start, comment.length);
     }
     try {
-      await api.put('/api/comments', { comments: this.comments });
+      const result = await api.put('/api/comments', { comments: this.comments, expected: theirs.comments });
+      if (result.conflict) {
+        // Another program wrote the file after it was read here. Read it again and merge once more.
+        this.commentsDirty = true;
+        if (attempt < 5) await this.saveComments(attempt + 1);
+        return;
+      }
       this.diskComments = clone(this.comments);
     } catch (error) {
       this.ui.alert(error.message);

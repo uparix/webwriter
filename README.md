@@ -135,7 +135,9 @@ flowchart LR
 ````
 
 The preview, the reading views, and the PDF draw it where it stands; a fence Mermaid cannot read
-shows its text with Mermaid's message. **Insert Mermaid Diagram** (Markup menu, palette) puts a fence
+shows its text with Mermaid's message. A diagram is as wide as Mermaid draws it, up to the text
+width; `` ```mermaid {width=50%} `` sets its width as for a picture, which other Markdown programs
+ignore. **Insert Mermaid Diagram** (Markup menu, palette) puts a fence
 around the selection, or a small flowchart to start from. The exported Markdown keeps the fence as
 written, which other Markdown programs such as GitHub draw too. Pandoc cannot draw Mermaid, so for
 the Word exports the page draws each diagram as a picture and sends it along; a diagram that cannot

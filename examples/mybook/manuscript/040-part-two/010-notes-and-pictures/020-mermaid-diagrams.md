@@ -80,9 +80,9 @@ gantt
     Final pass   :b2, after b1, 10d
 ```
 
-A pie chart shows where the words went:
+A pie chart shows where the words went. The `{width=50%}` after `mermaid` sets its width on the page, as for a picture:
 
-```mermaid
+```mermaid {width=50%}
 pie title Words by part
   "Front matter" : 800
   "Part one" : 14000

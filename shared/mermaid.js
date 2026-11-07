@@ -9,6 +9,15 @@ export const MERMAID_SAMPLE = 'flowchart LR\n  A[Start] --> B[End]';
 
 export const isMermaidInfo = (info) => info.trim().split(/\s+/)[0] === MERMAID_INFO;
 
+/**
+ * The width a fence asks for, written like a picture's after the word mermaid:
+ * `` ```mermaid {width=50%} ``. A percentage of the text width, or a length such as `3in`; else null.
+ */
+export function mermaidWidth(info) {
+  const match = /\{[^}]*\bwidth=("?)(\d+(?:\.\d+)?(?:%|px|in|cm|mm))\1[^}]*\}/.exec(info);
+  return match ? match[2] : null;
+}
+
 /** A fenced line without the fence's own indent, by CommonMark's rule. */
 export function dropFenceIndent(line, indent) {
   let n = 0;
@@ -17,8 +26,8 @@ export function dropFenceIndent(line, indent) {
 }
 
 /**
- * The mermaid fences in `markdown`: [{ start, end, source }], where lines `start` to `end` (exclusive)
- * are the fence and `source` is the text inside it. An unclosed fence runs to the end, as in the
+ * The mermaid fences in `markdown`: [{ start, end, source, width }], where lines `start` to `end`
+ * (exclusive) are the fence, `source` is the text inside it, and `width` is the width it asks for. An unclosed fence runs to the end, as in the
  * renderer.
  */
 export function mermaidBlocks(markdown) {
@@ -40,7 +49,8 @@ export function mermaidBlocks(markdown) {
     }
     const end = Math.min(k + 1, lines.length);
     if (isMermaidInfo(mark.info)) {
-      blocks.push({ start: i, end, source: lines.slice(i + 1, k).map((l) => dropFenceIndent(l, indent)).join('\n') });
+      const source = lines.slice(i + 1, k).map((l) => dropFenceIndent(l, indent)).join('\n');
+      blocks.push({ start: i, end, source, width: mermaidWidth(mark.info) });
     }
     i = end;
   }
@@ -50,14 +60,14 @@ export function mermaidBlocks(markdown) {
 /** The source of every mermaid fence in `markdown`, each once. */
 export const mermaidSources = (markdown) => [...new Set(mermaidBlocks(markdown).map((b) => b.source))];
 
-/** `markdown` with each mermaid fence replaced by `replace(source)`, or kept when that gives null. */
+/** `markdown` with each mermaid fence replaced by `replace(block)`, or kept when that gives null. */
 export function replaceMermaid(markdown, replace) {
   const lines = markdown.split('\n');
   const out = [];
   let at = 0;
   for (const block of mermaidBlocks(markdown)) {
     out.push(...lines.slice(at, block.start));
-    const replacement = replace(block.source);
+    const replacement = replace(block);
     out.push(...(replacement == null ? lines.slice(block.start, block.end) : [replacement]));
     at = block.end;
   }

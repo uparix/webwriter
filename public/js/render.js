@@ -7,7 +7,7 @@ import { Mapped, shiftHeadings, prepareNotes, noteNumber, NOTE_OPEN, NOTE_CLOSE 
 import { highlightCode } from './code.js';
 import { tagAttributes, tagColor } from '/shared/tags.js';
 import { INDEX_INFO, indexEntries } from '/shared/bookindex.js';
-import { MERMAID_INFO } from '/shared/mermaid.js';
+import { MERMAID_INFO, mermaidWidth } from '/shared/mermaid.js';
 import { mermaidHTML } from './mermaid.js';
 
 /** The book's tag colors from tags.json, by tag name. */
@@ -555,7 +555,9 @@ export class Renderer {
         const code = this.codeBlock(content, language, lineAttr(i + 1 < entries.length ? i + 1 : i));
         if (language === MERMAID_INFO) {
           this.mermaids = (this.mermaids || 0) + 1;
-          html += mermaidHTML(content.map((l) => l.text).join('\n'), `${this.ctx.scope}:${this.mermaids}`, code, lineAttr(i));
+          const width = mermaidWidth(fence.info);
+          const attrs = lineAttr(i) + (width ? ` style="--mermaid-width:${width}"` : '');
+          html += mermaidHTML(content.map((l) => l.text).join('\n'), `${this.ctx.scope}:${this.mermaids}`, code, attrs);
         } else {
           html += code;
         }

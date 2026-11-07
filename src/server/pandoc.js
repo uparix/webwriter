@@ -59,15 +59,15 @@ const PIXELS_PER_INCH = 96;
 
 /**
  * Run `write(prepare)` with the page's PNGs of the mermaid diagrams in a temporary folder. `prepare`
- * makes a piece of exported Markdown ready for Pandoc: each mermaid fence becomes its picture, and
- * each tag gets its color. A fence the page sent no picture for stays a code block, with a warning.
+ * makes a piece of exported Markdown ready for Pandoc: each mermaid fence becomes its picture, at the
+ * width the fence asks for or else its own size, and each tag gets its color. A fence the page sent no picture for stays a code block, with a warning.
  */
 async function withPictures(pictures, tags, warnings, write) {
   const bySource = new Map(pictures.map((p) => [p.source, p]));
   const dir = pictures.length ? fs.mkdtempSync(path.join(os.tmpdir(), 'webwriter-mermaid-')) : null;
   const written = new Map();
   let missing = 0;
-  const pictureFor = (source) => {
+  const pictureFor = ({ source, width }) => {
     const picture = bySource.get(source);
     if (!picture) {
       missing += 1;
@@ -78,7 +78,7 @@ async function withPictures(pictures, tags, warnings, write) {
       fs.writeFileSync(file, Buffer.from(picture.png, 'base64'));
       written.set(source, file);
     }
-    return `![](<${written.get(source)}>){width=${(picture.width / PIXELS_PER_INCH).toFixed(2)}in}`;
+    return `![](<${written.get(source)}>){width=${width || `${(picture.width / PIXELS_PER_INCH).toFixed(2)}in`}}`;
   };
   try {
     return await write((markdown) => resolveTagColors(replaceMermaid(markdown, pictureFor), tags));

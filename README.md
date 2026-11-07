@@ -254,8 +254,8 @@ npm test
 
 The export tests in `test/core.test.js` load the two fixture books in `test/fixtures/` and require
 the export to match `*.expected.md` and `*.expected.txt` byte for byte. GitHub Actions runs the tests
-on every push, on Linux and macOS with Node.js 22 and 24 (`.github/workflows/test.yml`); the Word
-export tests are skipped there, as they need Pandoc.
+on every push, on Linux and macOS with Node.js 22 and 24, with Pandoc installed for the Word export
+tests (`.github/workflows/test.yml`). Without Pandoc, those tests are skipped.
 
 ## License
 

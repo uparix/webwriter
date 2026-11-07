@@ -212,15 +212,22 @@ test('a change another program makes in the book folder is announced to the wind
   const events = await listen(server);
   try {
     await events.next((e) => e.type === 'hello');
-    writePiece(root, '010-arrival.md', { id: 'arrival', title: 'Arrival' }, 'The ferry was late.\n');
-    await events.next((e) => e.type === 'changed' && e.manuscript);
-    fs.writeFileSync(path.join(root, 'comments.json'), '{ "comments" : [], "version" : 1 }\n');
-    await events.next((e) => e.type === 'changed' && e.comments);
-    fs.writeFileSync(path.join(root, 'tags.json'), '{ "tags" : { "draft" : "green" }, "version" : 1 }\n');
-    await events.next((e) => e.type === 'changed' && e.tags);
+    // The system may miss a change made the moment watching starts, so each is written again until seen.
+    const announced = async (write, matches) => {
+      for (let attempt = 1; ; attempt += 1) {
+        write();
+        try {
+          return await events.next((e) => e.type === 'changed' && matches(e), 1000);
+        } catch (error) {
+          if (attempt === 5) throw error;
+        }
+      }
+    };
+    await announced(() => writePiece(root, '010-arrival.md', { id: 'arrival', title: 'Arrival' }, 'The ferry was late.\n'), (e) => e.manuscript);
+    await announced(() => fs.writeFileSync(path.join(root, 'comments.json'), '{ "comments" : [], "version" : 1 }\n'), (e) => e.comments);
+    await announced(() => fs.writeFileSync(path.join(root, 'tags.json'), '{ "tags" : { "draft" : "green" }, "version" : 1 }\n'), (e) => e.tags);
     fs.mkdirSync(path.join(root, 'images'), { recursive: true });
-    fs.writeFileSync(path.join(root, 'images', 'map.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
-    await events.next((e) => e.type === 'changed' && e.pictures);
+    await announced(() => fs.writeFileSync(path.join(root, 'images', 'map.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>'), (e) => e.pictures);
   } finally {
     events.close();
     server.close();

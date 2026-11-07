@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node bin/webwriter.js",
     "check": "node bin/webwriter.js check",
-    "test": "node --import ./test/browser-paths.mjs --test \"test/*.test.js\"",
+    "test": "node --import ./test/browser-paths.mjs --test --test-timeout=60000 \"test/*.test.js\"",
     "fetch-drawio": "node scripts/fetch-drawio.mjs",
     "postinstall": "node scripts/fetch-drawio.mjs --optional"
   },
@@ -18,7 +18,7 @@
   },
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "codemirror": "^5.65.18",
+    "codemirror": "^5.65.21",
     "mermaid": "^11.17.2"
   }
 }

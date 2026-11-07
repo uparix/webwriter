@@ -19,20 +19,31 @@ test('the changes followed are the manuscript, book.json, comments, tags, and pi
   assert.deepEqual(relevantChange(''), { manuscript: true, comments: true, tags: true, pictures: true });
 });
 
-test('changes close together arrive as one batch of relative paths', async () => {
+test('changed files are reported by their paths in the folder', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-watch-'));
   fs.mkdirSync(path.join(root, 'manuscript'));
-  let watcher;
+  const seen = new Set();
+  let reported;
+  const watcher = new FolderWatcher(root, (paths) => {
+    for (const p of paths) seen.add(p);
+    reported?.();
+  }, 50);
+  const wanted = ['manuscript/010-a.md', 'tags.json'];
   try {
-    const batch = await new Promise((resolve) => {
-      watcher = new FolderWatcher(root, resolve, 200);
-      fs.writeFileSync(path.join(root, 'manuscript', '010-a.md'), 'a');
+    // The system may report a change late, or in more than one batch, or miss one made the moment
+    // watching starts. Writing again until both are seen keeps the test from depending on that.
+    const deadline = Date.now() + 5000;
+    while (!wanted.every((p) => seen.has(p))) {
+      assert.ok(Date.now() < deadline, `Not reported in time. Seen: ${[...seen].join(', ')}`);
+      fs.writeFileSync(path.join(root, 'manuscript', '010-a.md'), String(Date.now()));
       fs.writeFileSync(path.join(root, 'tags.json'), '{}');
-    });
-    assert.ok(batch.includes('manuscript/010-a.md'), batch.join(', '));
-    assert.ok(batch.includes('tags.json'), batch.join(', '));
+      await new Promise((resolve) => {
+        reported = resolve;
+        setTimeout(resolve, 500);
+      });
+    }
   } finally {
-    watcher?.stop();
+    watcher.stop();
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

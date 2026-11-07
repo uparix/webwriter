@@ -185,6 +185,12 @@ const has = {
   book: () => Boolean(model.book),
   node: () => model.openNodeID != null && model.editor != null,
   query: () => model.find.query !== '',
+  /** Whether Markup changes what is shown: not for the book row or the Trash, which show no editor. */
+  markup: () => {
+    if (!model.book || model.selection.kind === 'book') return false;
+    const selected = model.selectedNode;
+    return Boolean(selected) && !isTrash(selected.node);
+  },
 };
 
 const MENUS = [
@@ -237,7 +243,7 @@ const MENUS = [
     { label: 'Comments Panel', shortcut: '⌥⌘0', keys: ['mod+alt+Digit0'], checked: () => model.commentsPanelVisible, enabled: has.book, action: () => model.setCommentsPanel(!model.commentsPanelVisible) },
   ] },
   { label: 'View', items: [
-    { label: 'Show Markup', shortcut: '⇧⌘M', keys: ['mod+shift+KeyM'], checked: () => model.showsMarkup, enabled: has.book, action: () => model.setShowsMarkup(!model.showsMarkup) },
+    { label: 'Show Markup', shortcut: '⇧⌘M', keys: ['mod+shift+KeyM'], checked: () => model.showsMarkup, enabled: has.markup, action: () => model.setShowsMarkup(!model.showsMarkup) },
   ] },
   { label: 'Help', items: [
     { label: 'Markup Reminder', action: () => showReminder() },
@@ -341,14 +347,15 @@ function buildToolbar() {
 function updateToolbar() {
   const title = $('book-title');
   if (document.activeElement !== title && title.value !== model.bookTitle) title.value = model.bookTitle;
-  $('markup-toggle').classList.toggle('on', model.showsMarkup);
+  $('markup-toggle').classList.toggle('on', model.showsMarkup && has.markup());
   $('comments-toggle').classList.toggle('on', model.commentsPanelVisible);
   const warnings = model.book?.warnings.length ?? 0;
   $('warnings-button').hidden = warnings === 0;
   $('warnings-count').textContent = `${warnings} Warning${warnings === 1 ? '' : 's'}`;
   $('window-title').textContent = model.book ? model.book.title : 'Webwriter';
   document.body.classList.toggle('no-book', !model.book);
-  for (const id of ['book-title', 'add-button', 'markup-toggle', 'comments-toggle']) $(id).disabled = !model.book;
+  for (const id of ['book-title', 'add-button', 'comments-toggle']) $(id).disabled = !model.book;
+  $('markup-toggle').disabled = !has.markup();
 }
 
 async function openBookPanel() {

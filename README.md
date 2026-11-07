@@ -248,3 +248,12 @@ npm test
 
 The export tests in `test/core.test.js` load the two fixture books in `test/fixtures/` and require
 the export to match `*.expected.md` and `*.expected.txt` byte for byte.
+
+## License
+
+Webwriter is licensed under either of
+
+- the Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE)), or
+- the MIT License ([LICENSE-MIT](LICENSE-MIT)),
+
+at your option. draw.io in `vendor/drawio/` keeps its own license (Apache 2.0).

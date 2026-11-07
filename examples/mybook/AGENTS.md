@@ -55,6 +55,7 @@ Keep the fields in this order. The body is Pandoc Markdown:
 - Do not repeat the title in the body. A `#` heading in the body is a subsection under it.
 - Footnotes: `[^label]`, defined in the same file; labels are local to the file.
 - Pictures: `![Caption](images/photo.jpg){width=50%}`.
+- Diagrams written as text: a `` ```mermaid `` fence holding [Mermaid](https://mermaid.js.org) syntax.
 - Tags: `[needs source]{.tag}` or `[urgent]{.tag color=red}`.
 - An index (a numbered list of the pieces after it) is an empty fence: `` ```index `` then `` ``` ``.
 - A page break: `<div class="page-break"></div>` on a line of its own.

@@ -272,6 +272,9 @@ body.resizing iframe, body.resizing .CodeMirror { pointer-events: none; }
 .paper hr { border: none; border-top: 1px solid #d9d9de; margin: 1.4em 0; }
 .paper a { color: var(--ink-link); }
 .paper img.picture { max-width: 100%; display: inline-block; vertical-align: top; }
+.paper .mermaid-diagram { margin: 0 0 0.8em; text-align: center; }
+.paper .mermaid-diagram svg { max-width: 100%; height: auto; }
+.paper .mermaid-diagram .warning { text-align: left; white-space: pre-wrap; font: 12px/1.4 var(--mono); }
 .paper .warning { color: #c4302b; }
 .paper sup.fnref a { text-decoration: none; font-size: 0.75em; padding: 0 1px; }
 .paper .notes { font-size: 0.9em; margin-top: 1.4em; }

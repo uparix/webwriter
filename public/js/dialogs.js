@@ -6,9 +6,10 @@ import { COMMANDS, matchingCommands } from '/shared/markup.js';
 import { TABLE_COMMANDS } from '/shared/table.js';
 import { TAG_COMMANDS, TAG_COLORS, TAG_COLOR_NAMES, autoColor, cleanTagName } from '/shared/tags.js';
 
-/** Insert Diagram, for the menu, the palette, and the reminder. */
+/** Insert Diagram and Insert Mermaid Diagram, for the menu, the palette, and the reminder. */
 export const DIAGRAM_COMMANDS = [
   { id: 'diagram', name: 'Insert Diagram', inserts: '![](images/name.drawio.svg){width=100%}, a new diagram drawn in draw.io' },
+  { id: 'mermaid', name: 'Insert Mermaid Diagram', inserts: 'A ```mermaid fence around the selection, a diagram written as text' },
 ];
 
 const PALETTE = [...COMMANDS, ...TAG_COMMANDS, ...DIAGRAM_COMMANDS, ...TABLE_COMMANDS];

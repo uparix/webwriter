@@ -37,6 +37,7 @@ const STATIC = {
   '/js/': path.join(appRoot, 'public', 'js'),
   '/shared/': path.join(appRoot, 'shared'),
   '/vendor/codemirror/': path.join(appRoot, 'node_modules', 'codemirror'),
+  '/vendor/mermaid/': path.join(appRoot, 'node_modules', 'mermaid', 'dist'),
   '/drawio/': path.join(appRoot, 'vendor', 'drawio'),
 };
 const PAGES = {
@@ -320,7 +321,7 @@ export function createServer({
       } catch {
         // Tags are drawn in their automatic colors.
       }
-      return writeChapters(book, dir, new Date(), tags);
+      return writeChapters(book, dir, new Date(), tags, mermaidPictures(body.mermaid));
     },
     'POST /api/export/word-book': async ({ body }) => {
       const book = loadBook(requireBook());
@@ -332,9 +333,16 @@ export function createServer({
       } catch {
         // Tags are drawn in their automatic colors.
       }
-      return writeBook(book, file, tags);
+      return writeBook(book, file, tags, mermaidPictures(body.mermaid));
     },
   };
+
+  /** The PNGs the page made of the book's mermaid diagrams for Word: [{ source, png, width, height }]. */
+  function mermaidPictures(list) {
+    if (!Array.isArray(list)) return [];
+    return list.filter((p) => p && typeof p.source === 'string' && typeof p.png === 'string'
+      && Number.isFinite(p.width) && p.width > 0 && Number.isFinite(p.height) && p.height > 0);
+  }
 
   function walkFind(book, id) {
     let found = null;

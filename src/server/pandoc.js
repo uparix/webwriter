@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { wordFiles, exportBook, timestamped } from '../../shared/export.js';
 import { resolveTagColors } from '../../shared/tags.js';
+import { replaceMermaid } from '../../shared/mermaid.js';
 
 /** Draws tags as shaded text in Word. */
 const TAG_FILTER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tags.lua');
@@ -53,24 +54,61 @@ export function docx(markdown, output, resourceDirectory) {
   });
 }
 
+/** Pandoc knows no Mermaid, so the page draws each diagram as a PNG: 96 pixels to the inch. */
+const PIXELS_PER_INCH = 96;
+
+/**
+ * Run `write(prepare)` with the page's PNGs of the mermaid diagrams in a temporary folder. `prepare`
+ * makes a piece of exported Markdown ready for Pandoc: each mermaid fence becomes its picture, and
+ * each tag gets its color. A fence the page sent no picture for stays a code block, with a warning.
+ */
+async function withPictures(pictures, tags, warnings, write) {
+  const bySource = new Map(pictures.map((p) => [p.source, p]));
+  const dir = pictures.length ? fs.mkdtempSync(path.join(os.tmpdir(), 'webwriter-mermaid-')) : null;
+  const written = new Map();
+  let missing = 0;
+  const pictureFor = (source) => {
+    const picture = bySource.get(source);
+    if (!picture) {
+      missing += 1;
+      return null;
+    }
+    if (!written.has(source)) {
+      const file = path.join(dir, `diagram-${written.size + 1}.png`);
+      fs.writeFileSync(file, Buffer.from(picture.png, 'base64'));
+      written.set(source, file);
+    }
+    return `![](<${written.get(source)}>){width=${(picture.width / PIXELS_PER_INCH).toFixed(2)}in}`;
+  };
+  try {
+    return await write((markdown) => resolveTagColors(replaceMermaid(markdown, pictureFor), tags));
+  } finally {
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
+    if (missing) warnings.push(`${missing} Mermaid diagram${missing === 1 ? '' : 's'} could not be drawn and ${missing === 1 ? 'is' : 'are'} shown as code.`);
+  }
+}
+
 /**
  * One Word file for each front-matter piece and each chapter, written into `directory`.
- * `tags` are the colors from tags.json, so each tag is shaded in its color.
+ * `tags` are the colors from tags.json, so each tag is shaded in its color. `pictures` are the
+ * page's PNGs of the mermaid diagrams, [{ source, png, width, height }].
  */
-export async function writeChapters(book, directory, date = new Date(), tags = {}) {
+export async function writeChapters(book, directory, date = new Date(), tags = {}, pictures = []) {
   const exported = wordFiles(book.nodes);
   const names = [];
-  for (const file of exported.files) {
-    const name = date ? timestamped(file.name, date) : file.name;
-    await docx(resolveTagColors(file.markdown, tags), path.join(directory, name), book.root);
-    names.push(name);
-  }
+  await withPictures(pictures, tags, exported.warnings, async (prepare) => {
+    for (const file of exported.files) {
+      const name = date ? timestamped(file.name, date) : file.name;
+      await docx(prepare(file.markdown), path.join(directory, name), book.root);
+      names.push(name);
+    }
+  });
   return { files: names, warnings: exported.warnings };
 }
 
 /** The whole manuscript as one Word file at `file`. */
-export async function writeBook(book, file, tags = {}) {
+export async function writeBook(book, file, tags = {}, pictures = []) {
   const exported = exportBook(book.nodes);
-  await docx(resolveTagColors(exported.markdown, tags), file, book.root);
+  await withPictures(pictures, tags, exported.warnings, (prepare) => docx(prepare(exported.markdown), file, book.root));
   return { file, warnings: exported.warnings };
 }

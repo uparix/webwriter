@@ -14,6 +14,8 @@ import { exportChapter, fileTitle, timestamped } from '/shared/export.js';
 import { TABLE_COMMANDS, editTable, findTable, leaveTable } from '/shared/table.js';
 import { tagsIn, tagColor, normalizeTag, tagMarkup, cleanTagName, colorValue } from '/shared/tags.js';
 import { diagramInSVG } from './diagram.js';
+import { MERMAID_INFO, MERMAID_SAMPLE, mermaidSources } from '/shared/mermaid.js';
+import { mermaidPNG } from './mermaid.js';
 
 /** Windows open on one server before saving may stall: each holds one of the browser's six connections. */
 const TOO_MANY_WINDOWS = 4;
@@ -506,6 +508,16 @@ export class BookModel {
     if (command === 'picture') {
       picturePath = await this.ui.choosePicture(this.book.root);
       if (!picturePath) return;
+    }
+    if (command === 'mermaid') {
+      if (!this.showsMarkup) this.setShowsMarkup(true);
+      const { anchor, head } = this.editor.selection;
+      const fenced = applyMarkup('codeBlock', this.buffer, anchor, head, { language: MERMAID_INFO });
+      if (anchor !== head) return this.editor.replace(fenced);
+      // An empty fence gets a small flowchart to start from.
+      const at = fenced.anchor;
+      const end = at + MERMAID_SAMPLE.length;
+      return this.editor.replace({ text: fenced.text.slice(0, at) + MERMAID_SAMPLE + fenced.text.slice(at), anchor: end, head: end });
     }
     let language = '';
     if (command === 'codeBlock') {
@@ -1294,6 +1306,24 @@ export class BookModel {
     this.ui.printPDF({ chapter: id, name: timestamped(chapter.filename, new Date()) });
   }
 
+  /**
+   * The manuscript's mermaid diagrams as PNGs for Word, which Pandoc cannot draw:
+   * [{ source, png, width, height }]. A diagram Mermaid cannot read is left out and stays code.
+   */
+  async mermaidPictures() {
+    const sources = new Set();
+    walk(manuscript(this.book.nodes), (node) => mermaidSources(this.liveBody(node)).forEach((s) => sources.add(s)));
+    const pictures = [];
+    for (const source of sources) {
+      try {
+        pictures.push({ source, ...(await mermaidPNG(source)) });
+      } catch (error) {
+        report(`mermaid: no picture for Word: ${error.message}`);
+      }
+    }
+    return pictures;
+  }
+
   /** The whole book as one Word file. */
   async exportBookWord() {
     if (!this.book || this.exportingWord) return;
@@ -1303,7 +1333,7 @@ export class BookModel {
     this.exportingWord = true;
     this.emit('ui');
     try {
-      const result = await api.post('/api/export/word-book', { file });
+      const result = await api.post('/api/export/word-book', { file, mermaid: await this.mermaidPictures() });
       this.report(result.warnings, result.file);
     } catch (error) {
       this.ui.alert(`Word export failed: ${error.message}`);
@@ -1327,7 +1357,7 @@ export class BookModel {
     this.exportingWord = true;
     this.emit('ui');
     try {
-      const result = await api.post('/api/export/word', { dir });
+      const result = await api.post('/api/export/word', { dir, mermaid: await this.mermaidPictures() });
       this.report(result.warnings, dir);
       if (result.files.length === 0) this.ui.alert('The book has no front matter and no chapters, so there is nothing to export to Word.');
       else this.ui.toast(`Wrote ${result.files.length} Word file${result.files.length === 1 ? '' : 's'} to ${dir}`);

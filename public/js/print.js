@@ -2,6 +2,7 @@
 // renderer on Letter pages. Notes are printed at the end of the group they belong to.
 import { api } from './api.js';
 import { renderPlain, setTagDefinitions } from './render.js';
+import { mermaidSettled } from './mermaid.js';
 import { noteGroups, exportChapter } from '/shared/export.js';
 
 const params = new URLSearchParams(location.search);
@@ -22,6 +23,7 @@ const first = printed.querySelector('.note-group > :first-child');
 if (first?.classList.contains('page-break-mark')) first.remove();
 // The save dialog suggests the window title as the file name.
 document.title = (params.get('name') || book.title).replace(/\.pdf$/, '');
+await mermaidSettled();
 await Promise.all([...printed.querySelectorAll('img')].map((img) => (img.complete ? null : new Promise((r) => { img.onload = r; img.onerror = r; }))));
 for (const img of printed.querySelectorAll('img.picture')) {
   if (!img.naturalWidth) {

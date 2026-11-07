@@ -224,6 +224,7 @@ const MENUS = [
     { label: 'Tag…', shortcut: '⌥⌘T', keys: ['mod+alt+KeyT'], enabled: has.node, action: () => model.apply('tag') },
     { label: 'Tag Colors…', enabled: has.book, action: () => ui.showTagColors() },
     { label: 'Insert Diagram…', enabled: has.node, action: () => model.apply('diagram') },
+    { label: 'Insert Mermaid Diagram', enabled: has.node, action: () => model.apply('mermaid') },
     '-',
     { label: 'Table', enabled: has.node, submenu: () => editorTableItems() },
     '-',

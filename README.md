@@ -122,6 +122,26 @@ When a diagram is saved, Webwriter keeps draw.io's SVG in its light colors (draw
 both light and dark mode, and a browser in dark mode would draw it dark on the white page) and drops
 draw.io's "Text is not SVG" note, which only Word would show.
 
+### Mermaid diagrams
+
+A diagram can also be written as text, in [Mermaid](https://mermaid.js.org) syntax, in a `mermaid`
+code fence:
+
+````markdown
+```mermaid
+flowchart LR
+  Idea --> Draft --> Revision --> Book
+```
+````
+
+The preview, the reading views, and the PDF draw it where it stands; a fence Mermaid cannot read
+shows its text with Mermaid's message. **Insert Mermaid Diagram** (Markup menu, palette) puts a fence
+around the selection, or a small flowchart to start from. The exported Markdown keeps the fence as
+written, which other Markdown programs such as GitHub draw too. Pandoc cannot draw Mermaid, so for
+the Word exports the page draws each diagram as a picture and sends it along; a diagram that cannot
+be drawn stays code, with a warning. Mermaid comes with `npm install` and is served from Webwriter's
+own address, so it works without the internet.
+
 ## Index
 
 An index is a text that lists every piece after it in the book, numbered by its place in the
@@ -166,8 +186,8 @@ example `brew install pandoc`):
 - **Export Chapters to Word…** writes one `.docx` for each front-matter piece and each chapter into a
   folder.
 
-Pictures, diagrams, and tags (shaded in their colors) come along. A Pandoc filter
-(`src/server/breaks.lua`) turns the export's page breaks into Word page breaks, and its part and
+Pictures, diagrams (Mermaid diagrams as pictures), and tags (shaded in their colors) come along. A
+Pandoc filter (`src/server/breaks.lua`) turns the export's page breaks into Word page breaks, and its part and
 chapter numbers ("Part 1", "Chapter 3") into centered, bold paragraphs, which Word would otherwise
 drop.
 

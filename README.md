@@ -202,6 +202,13 @@ instead. Link, Picture, Code block, and Footnote insert again each time. Beyond 
 Markdown, Webwriter has tables that can be edited cell by cell, alignment, tags, diagrams, and an
 index.
 
+The editor types closing marks for you. `*`, `_`, `` ` ``, `[`, `(`, and `{` come with their closer,
+with the cursor between them; typing the closer steps over it, and Backspace in an empty pair takes
+out both. A second `*` in `*|*` makes `**|**`, and a space makes it a list mark. With text selected,
+the mark wraps the selection instead of replacing it. Enter at the end of a code fence that nothing
+closes adds the closing fence below. Inside words (`snake_case`, `2*3`) and where a fence may start,
+the marks are typed as they are.
+
 ### Tables
 
 Pipe tables (`| a | b |`) can be edited in the Markdown editor:

@@ -3,6 +3,7 @@
 // Each node keeps its own CodeMirror document, so its undo history survives switching nodes.
 import { fenceStep, fenceMark, codeSpans } from '/shared/fences.js';
 import { changedSpan } from '/shared/markup.js';
+import { PAIRS, typed, emptyPair, wrapping, fenceToClose } from '/shared/autoclose.js';
 import { highlight } from '/shared/comments.js';
 import { tagAttributes, tagColor } from '/shared/tags.js';
 import { getTagDefinitions } from './render.js';
@@ -100,6 +101,76 @@ function lineStyles(line, fence) {
   return { styles: classes.map((set) => (set.size ? [...set].join(' ') : null)), fence: stepped.fence, lineClass };
 }
 
+// MARK: Closing marks
+
+/** The one cursor, or null when there are several selections. */
+function soleRange(cm) {
+  const ranges = cm.listSelections();
+  return ranges.length === 1 ? ranges[0] : null;
+}
+
+/** Type a mark with its closer, step over a closer, or wrap the selection in a pair. */
+function typeChar(cm, char) {
+  const range = soleRange(cm);
+  if (!range || cm.getOption('readOnly')) return CodeMirror.Pass;
+  const doc = cm.getDoc();
+  if (range.empty()) {
+    const { line, ch } = range.head;
+    const result = typed(doc.getLine(line), ch, char);
+    if (!result) return CodeMirror.Pass;
+    cm.operation(() => {
+      if (result.action === 'over') {
+        doc.setCursor({ line, ch: ch + 1 });
+      } else if (result.action === 'pair') {
+        doc.replaceRange(char + PAIRS[char], { line, ch }, undefined, '+input');
+        doc.setCursor({ line, ch: ch + 1 });
+      } else if (result.action === 'unpair') {
+        doc.replaceRange(' ', { line, ch }, { line, ch: ch + result.length }, '+input');
+      }
+    });
+    return undefined;
+  }
+  const wrap = wrapping(char);
+  const from = range.from();
+  const to = range.to();
+  if (!wrap || from.line !== to.line) return CodeMirror.Pass;
+  // The selection stays on the wrapped text, so a second `*` makes it strong.
+  cm.operation(() => {
+    doc.replaceRange(wrap.close, to, undefined, '+markup');
+    doc.replaceRange(wrap.open, from, undefined, '+markup');
+    doc.setSelection({ line: from.line, ch: from.ch + 1 }, { line: to.line, ch: to.ch + 1 });
+  });
+  return undefined;
+}
+
+/** Backspace in an empty pair, such as `[|]`, takes out both marks. */
+function removePair(cm) {
+  const range = soleRange(cm);
+  if (!range || !range.empty() || cm.getOption('readOnly')) return CodeMirror.Pass;
+  const { line, ch } = range.head;
+  if (!emptyPair(cm.getLine(line), ch)) return CodeMirror.Pass;
+  cm.replaceRange('', { line, ch: ch - 1 }, { line, ch: ch + 1 }, '+delete');
+  return undefined;
+}
+
+/** Enter at the end of a code fence that nothing closes adds the closing fence below. */
+function closeFence(cm) {
+  const range = soleRange(cm);
+  if (!range || !range.empty()) return false;
+  const { line, ch } = range.head;
+  if (ch !== cm.getLine(line).length) return false;
+  const doc = cm.getDoc();
+  const lines = [];
+  doc.eachLine((handle) => { lines.push(handle.text); });
+  const closer = fenceToClose(lines, line);
+  if (closer == null) return false;
+  cm.operation(() => {
+    doc.replaceRange(`\n\n${closer}`, { line, ch }, undefined, '+input');
+    doc.setCursor({ line: line + 1, ch: 0 });
+  });
+  return true;
+}
+
 CodeMirror.defineMode('bookmd', () => ({
   startState: () => ({ fence: null, styles: null, lineClass: null }),
   copyState: (s) => ({ fence: s.fence, styles: s.styles, lineClass: s.lineClass }),
@@ -148,12 +219,16 @@ export class EditorController {
       if (!this.model.tableCommand(command)) return otherwise ? otherwise(cm) : CodeMirror.Pass;
       return undefined;
     };
-    this.cm.setOption('extraKeys', {
+    const keys = {
       Tab: inTable('nextCell', (cm) => cm.replaceSelection('\t')),
       'Shift-Tab': inTable('previousCell'),
-      Enter: inTable('nextRow', (cm) => cm.replaceSelection('\n')),
+      Enter: inTable('nextRow', (cm) => { if (!closeFence(cm)) cm.replaceSelection('\n'); }),
       'Shift-Enter': (cm) => cm.replaceSelection('\n'),
-    });
+      Backspace: (cm) => removePair(cm),
+      Space: (cm) => typeChar(cm, ' '),
+    };
+    for (const char of [...Object.keys(PAIRS), ']', ')', '}']) keys[`'${char}'`] = (cm) => typeChar(cm, char);
+    this.cm.setOption('extraKeys', keys);
     // Comments shift with each change as it happens, so two separate insertions, such as a
     // footnote mark and its definition, never stretch a comment over the text between them.
     // `beforeChange` fires against the text as it is right before each change, undo and redo included.
